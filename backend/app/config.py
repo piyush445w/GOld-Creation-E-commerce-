@@ -4,7 +4,17 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 def _normalize_database_url(url):
     """Auto-configure SSL for known database providers."""
-    if not url or not url.startswith('mysql+pymysql://'):
+    if not url:
+        return url
+
+    # Convert legacy/default MySQL schemes to PyMySQL so the app does not
+    # require mysqlclient/MySQLdb at runtime.
+    if url.startswith('mysql+mysqldb://'):
+        url = 'mysql+pymysql://' + url[len('mysql+mysqldb://'):]
+    elif url.startswith('mysql://'):
+        url = 'mysql+pymysql://' + url[len('mysql://'):]
+
+    if not url.startswith('mysql+pymysql://'):
         return url
 
     parsed = urlparse(url)
