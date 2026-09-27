@@ -1,15 +1,22 @@
-﻿# run.py - Development server entry point.
+# run.py - Development server entry point.
 # Run with: python run.py
 # Loads .env, creates the Flask app, starts the APScheduler, then runs the dev server on port 5000.
 import os
-# Change to the backend directory so relative paths (templates, media) resolve correctly.
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+import sys
+
+# Change to the backend directory so relative paths (templates, media) resolve correctly,
+# AND ensure this directory is on sys.path so `app` is importable regardless of how
+# the process was started (Gunicorn, Render shell, local run, etc.).
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(backend_dir)
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from dotenv import load_dotenv
 from app import create_app
 from app.utils.scheduler import start_scheduler
 
 # Load environment variables from .env in backend/ first, then fall back to project root.
-backend_dir = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(backend_dir, '.env'))
 load_dotenv(os.path.join(backend_dir, '..', '.env'))  # Fallback to project root
 
