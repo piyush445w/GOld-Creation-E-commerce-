@@ -5,7 +5,7 @@
 # wishlist items into a user account upon login. Renders 'storefront/wishlist.html'.
 
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session
-from flask_login import login_required, current_user
+from flask_login import current_user
 from app import db
 from app.models.wishlist import WishlistItem
 from app.models.product import Product
@@ -60,10 +60,9 @@ def view_wishlist():
         items = WishlistItem.query.filter_by(user_id=current_user.id).order_by(WishlistItem.added_at.desc()).all()
         return render_template('storefront/wishlist.html', items=items, format_currency=_format)
     guest_product_ids = _get_guest_wishlist()
-    products = Product.query.filter(Product.id.in_(guest_product_ids), Product.is_active == True).all() if guest_product_ids else []
+    products = Product.query.filter(Product.id.in_(guest_product_ids), Product.is_active).all() if guest_product_ids else []
     items = [_GuestWishlistItem(p) for p in products]
     return render_template('storefront/wishlist.html', items=items, guest=True, format_currency=_format)
-
 
 
 @wishlist_bp.route('/wishlist/toggle', methods=['POST'])

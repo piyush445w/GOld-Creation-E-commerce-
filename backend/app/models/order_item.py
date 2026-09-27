@@ -8,7 +8,6 @@ a product is renamed or repriced.
 
 from app import db
 from sqlalchemy import Numeric
-from datetime import datetime
 
 
 # One product/quantity line on an order, with frozen product details.

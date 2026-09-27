@@ -20,7 +20,7 @@ class PageMedia(db.Model):
     display_order = db.Column(db.Integer, default=0)
     is_primary = db.Column(db.Boolean, default=True)
     is_active = db.Column(db.Boolean, default=True)
-    media_data = db.Column(db.LargeBinary(length=(2**32)-1))
+    media_data = db.Column(db.LargeBinary(length=(2 ** 32) - 1))
     file_size = db.Column(db.BigInteger)
     original_filename = db.Column(db.String(255))
     checksum = db.Column(db.String(64))

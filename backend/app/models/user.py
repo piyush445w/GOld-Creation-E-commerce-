@@ -14,6 +14,7 @@ from datetime import datetime
 # get_id() hook the login manager uses to load a user from a session cookie.
 from flask_login import UserMixin
 
+
 # A customer or staff account; UserMixin makes it a valid Flask-Login user.
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -55,4 +56,3 @@ class User(UserMixin, db.Model):
     cart_items = db.relationship('CartItem', backref='user', lazy='dynamic')
     # Saved-for-later products for this account.
     wishlist_items = db.relationship('WishlistItem', backref='user', lazy='dynamic')
-

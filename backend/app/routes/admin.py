@@ -28,18 +28,15 @@ filesystem - image/video bytes are persisted into MySQL as BLOBs (see
 ``app.utils.media.save_media_to_db``) and served back through the ``media``
 blueprint.
 """
-import os
-import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import (
     Blueprint, render_template, request, redirect, url_for,
-    flash, jsonify, current_app, session
+    flash, jsonify, session
 )
-from flask_login import current_user
 from flask_wtf import FlaskForm
 from wtforms import (
     StringField, TextAreaField, DecimalField, IntegerField,
-    BooleanField, SelectField, HiddenField, FileField, DateTimeField, DateField
+    BooleanField, SelectField, HiddenField, DateTimeField, DateField
 )
 from wtforms.validators import DataRequired, Optional as WTFOptional, NumberRange
 from sqlalchemy import or_
@@ -47,7 +44,6 @@ from app import db
 from app.models.product import Product
 from app.models.category import Category
 from app.models.order import Order
-from app.models.order_item import OrderItem
 from app.models.coupon import Coupon
 from app.models.page import Page
 from app.models.page_media import PageMedia
@@ -223,6 +219,8 @@ def dashboard():
 # GET /admin/products (admin only) - paginated catalogue list, 20 per page, with
 # an optional '?q=' term matched case-insensitively against name and SKU.
 # Renders admin/products.html.
+
+
 @admin_bp.route('/products')
 @admin_required
 def products_list():
@@ -316,6 +314,8 @@ def product_new():
 # GET|POST /admin/products/<id>/edit - admin only. Loads the product, updates all
 # core fields and syncs the variant grid (create/update/delete). Redirects to the
 # product list on success; 404 for an unknown id.
+
+
 @admin_bp.route('/products/<int:id>/edit', methods=['GET', 'POST'])
 @admin_required
 def product_edit(id):
@@ -444,6 +444,8 @@ def _save_upload(file, media_type):
 # POST /admin/products/<product_id>/media - admin only. Accepts a multi-file
 # 'file' field plus a 'media_type' hint, creates one ProductMedia row per accepted
 # file and redirects back to the product editor with a success/warning flash.
+
+
 @admin_bp.route('/products/<int:product_id>/media', methods=['POST'])
 @admin_required
 def product_media_upload(product_id):
@@ -595,6 +597,8 @@ def product_variant_delete(product_id, variant_id):
 
 # GET /admin/categories - admin only. Paginated (20/page) tree listing ordered by
 # display_order then recency; renders admin/categories.html.
+
+
 @admin_bp.route('/categories')
 @admin_required
 def categories_list():
@@ -699,6 +703,8 @@ def category_delete(id):
 # POST /admin/categories/<category_id>/media - admin only. Accepts a multi-file
 # file field plus a media_type hint, creates one CategoryMedia row per accepted
 # file and redirects back to the category editor with a success flash.
+
+
 @admin_bp.route('/categories/<int:category_id>/media', methods=['POST'])
 @admin_required
 def category_media_upload(category_id):
@@ -707,7 +713,7 @@ def category_media_upload(category_id):
     media_type_raw = request.form.get('media_type', 'image')
     media_type = 'image' if media_type_raw not in ('video',) else 'video'
     for file in files:
-        if not file or file.filename == '' :
+        if not file or file.filename == '':
             continue
         from app.utils.media import save_media_to_db
         result, err = save_media_to_db(file, media_type)
@@ -734,6 +740,8 @@ def category_media_upload(category_id):
 
 # POST /admin/categories/<category_id>/media/<media_id>/delete - admin only.
 # Hard-deletes one asset and redirects back to the category editor.
+
+
 @admin_bp.route('/categories/<int:category_id>/media/<int:media_id>/delete', methods=['POST'])
 @admin_required
 def category_media_delete(category_id, media_id):
@@ -745,6 +753,8 @@ def category_media_delete(category_id, media_id):
 
 # POST /admin/categories/<category_id>/media/<media_id>/primary - admin only.
 # Marks one asset as the category primary image.
+
+
 @admin_bp.route('/categories/<int:category_id>/media/<int:media_id>/primary', methods=['POST'])
 @admin_required
 def category_media_set_primary(category_id, media_id):
@@ -757,6 +767,8 @@ def category_media_set_primary(category_id, media_id):
 
 # POST /admin/categories/<category_id>/media/reorder - admin only.
 # Drag-and-drop gallery ordering: rewrites display_order from submitted id sequence.
+
+
 @admin_bp.route('/categories/<int:category_id>/media/reorder', methods=['POST'])
 @admin_required
 def category_media_reorder(category_id):
@@ -875,6 +887,8 @@ def order_update_status(id):
 
 # GET /admin/coupons - admin only. Paginated (20/page) coupon table, newest
 # first. Renders admin/coupons.html.
+
+
 @admin_bp.route('/coupons')
 @admin_required
 def coupons_list():
@@ -965,6 +979,8 @@ def coupon_delete(id):
 
 # GET /admin/pages - admin only. Paginated (20/page) CMS page list, newest
 # first. Renders admin/pages.html.
+
+
 @admin_bp.route('/pages')
 @admin_required
 def pages_list():
@@ -1265,6 +1281,8 @@ def settings_logo_upload():
 
 # GET /admin/banners - admin only. Full (unpaginated) slide list in display
 # order. Renders admin/banners.html.
+
+
 @admin_bp.route('/banners')
 @admin_required
 def banners_list():
@@ -1339,7 +1357,7 @@ def banner_edit(id):
             banner.banner_data = stored['data']
             banner.mime_type = stored['mime_type']
             banner.file_size = stored['file_size']
-            
+
             banner.checksum = stored['checksum']
             banner.image_url = url_for('media.serve_banner', banner_id=banner.id, _external=False)
         else:
@@ -1385,7 +1403,7 @@ def banner_image_upload(id):
     banner.banner_data = stored['data']
     banner.mime_type = stored['mime_type']
     banner.file_size = stored['file_size']
-    
+
     banner.checksum = stored['checksum']
     banner.image_url = url_for('media.serve_banner', banner_id=banner.id, _external=False)
     db.session.commit()
@@ -1471,6 +1489,8 @@ def navigation_delete(id):
 
 # GET /admin/customers - admin only. Paginated (20/page) list of accounts with
 # role='customer', newest registrations first. Renders admin/customers.html.
+
+
 @admin_bp.route('/customers')
 @admin_required
 def customers_list():
@@ -1500,6 +1520,8 @@ def customer_detail(id):
 
 # GET /admin/reviews - admin only. Unpaginated moderation queue, newest first.
 # Renders admin/reviews.html.
+
+
 @admin_bp.route('/reviews')
 @admin_required
 def reviews_list():
@@ -1541,6 +1563,8 @@ def review_reject(id):
 # GET /admin/media - admin only. Read-only asset browser. Optional query params:
 # '?product_id=' restrict to one product, '?type=image|video' filter by kind,
 # '?q=' matches the original filename. Renders admin/media_manager.html.
+
+
 @admin_bp.route('/media')
 @admin_required
 def media_manager():
@@ -1561,6 +1585,3 @@ def media_manager():
     # assets first in the audit view.
     media = query.order_by(ProductMedia.display_order.desc()).all()
     return render_template('admin/media_manager.html', media=media, products=products, filter_product_id=product_id, filter_type=media_type)
-
-
-

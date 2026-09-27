@@ -49,6 +49,7 @@ migrate = Migrate()        # Alembic schema migration runner
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
 
+
 @login_manager.user_loader
 def load_user(user_id):
     """Rehydrate the logged-in principal from the ID stored in the session cookie.
@@ -195,7 +196,7 @@ def create_app(config_name='default'):
 
     # Import the models package so SQLAlchemy registers every table on the
     # metadata before migrations or create_all() inspect it.
-    from app import models
+    from app import models  # noqa: F401
     # Register custom Jinja filters/globals (price formatting, media URL
     # building, stock helpers) so templates can call them by bare name.
     from app.utils.templating import register_template_helpers

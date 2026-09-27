@@ -3,9 +3,9 @@ from flask_login import login_required, current_user
 from app import db
 from app.models.product_variant import ProductVariant
 from app.models.cart import CartItem
-from app.models.product import Product
 from app.utils.currency_utils import convert_amount, format_currency
 import uuid
+from decimal import Decimal
 
 # =============================================================================
 # Blueprint: cart
@@ -48,7 +48,6 @@ def _get_cart_items():
 # _cart_subtotal sums price * quantity per item, preferring a variant's
 # price_override when set, else the product's base_price. Decimal math avoids
 # float rounding on currency totals.
-from decimal import Decimal
 
 def _cart_subtotal(items):
     total = Decimal('0')
@@ -86,7 +85,8 @@ def view_cart():
     if current_user.is_authenticated and current_user.preferred_currency:
         currency = current_user.preferred_currency
     converted_subtotal = convert_amount(subtotal, 'INR', currency)
-    return render_template('storefront/cart.html',
+    return render_template(
+        'storefront/cart.html',
         items=items,
         subtotal=subtotal,
         converted_subtotal=converted_subtotal,
@@ -243,12 +243,11 @@ def cart_count():
         count = CartItem.query.filter_by(guest_session_id=gid).count() if gid else 0
     return jsonify({'count': count})
 
+
 @cart_bp.route('/currency/set', methods=['POST'])
 def set_currency():
     data = request.get_json(silent=True) or request.form
     currency = data.get('currency', 'INR').upper()
     response = jsonify({'success': True})
-    response.set_cookie('currency', currency, max_age=60*60*24*365)
+    response.set_cookie('currency', currency, max_age=60 * 60 * 24 * 365)
     return response
-
-

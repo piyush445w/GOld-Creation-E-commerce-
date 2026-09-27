@@ -14,7 +14,6 @@ from app.utils.currency_utils import refresh_currency_rates
 from app.utils.email import send_abandoned_cart_email
 from app.models.user import User
 from app.models.cart import CartItem
-from app import db
 
 
 # Single shared scheduler instance; started by start_scheduler() and stopped at app teardown.

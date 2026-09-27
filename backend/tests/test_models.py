@@ -12,8 +12,6 @@ store depends on:
    backref fails here rather than as a 500 in production.
 """
 
-import pytest
-from app import db
 from app.models.user import User
 from app.models.category import Category
 from app.models.product import Product
@@ -327,4 +325,3 @@ class TestReview:
         db_session.commit()
         assert review.id is not None
         assert review.rating == 5
-

@@ -9,7 +9,7 @@
 # where a cart/session is converted into a persisted Order row.
 # =============================================================================
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, session
-from flask_login import login_required, current_user
+from flask_login import current_user
 from app import db
 from app.models.cart import CartItem
 from app.models.address import Address
@@ -17,7 +17,6 @@ from app.models.coupon import Coupon
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product_variant import ProductVariant
-from app.models.product import Product
 from app.models.currency import Currency
 from app.models.user import User
 from app.utils.currency_utils import get_visitor_currency, convert_amount, format_currency
@@ -40,15 +39,20 @@ checkout_bp = Blueprint('checkout', __name__)
 # ---------------------------------------------------------------------------
 
 # Resolve the currency to display/charge for the current request (cookie or INR).
+
 def _get_currency():
     return get_visitor_currency(request)
 
 # Format a numeric amount using the visitor's currency (for template rendering).
+
+
 def _format(amount):
     return format_currency(amount, _get_currency())
 
 # Aggregate the active cart (logged-in user_id OR guest session id) into a list
 # of line items and a subtotal in raw INR base units. Returns ([items], total).
+
+
 def _cart_total_and_items():
     if current_user.is_authenticated:
         items = CartItem.query.filter_by(user_id=current_user.id).all()
@@ -66,6 +70,8 @@ def _cart_total_and_items():
 
 # For guest checkouts, lazily create a shadow "customer" User row so the order
 # has a user_id to attach to; the guest session is preserved in the session cookie.
+
+
 def _get_or_create_guest_user():
     guest_user_id = session.get('guest_user_id')
     if guest_user_id:
@@ -90,6 +96,8 @@ def _get_or_create_guest_user():
 
 # Build a one-item "list" from the session's buy-now payload, with stock + qty
 # validation; used by both the checkout page and order placement.
+
+
 def _get_buy_now_items():
     data = session.get('buy_now')
     if not data:
@@ -172,7 +180,8 @@ def checkout():
     if from_curr and to_curr:
         exchange_rate = float(from_curr.exchange_rate_to_inr) / float(to_curr.exchange_rate_to_inr)
 
-    return render_template('storefront/checkout.html',
+    return render_template(
+        'storefront/checkout.html',
         items=items,
         subtotal=converted_subtotal,
         discount=discount,
@@ -519,6 +528,7 @@ def initiate_payment():
 
 
 # --- Verify a Razorpay payment signature using HMAC-SHA256 over "<order_id>|<payment_id>" ---
+
 def _verify_razorpay_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature):
     key_secret = os.environ.get('RAZORPAY_KEY_SECRET', '')
     if not key_secret:
@@ -529,6 +539,7 @@ def _verify_razorpay_signature(razorpay_order_id, razorpay_payment_id, razorpay_
 
 
 # --- Verify a PayPal capture by fetching the order via the REST API and comparing amount+currency ---
+
 def _verify_paypal_capture(order):
     client_id = os.environ.get('PAYPAL_CLIENT_ID', '')
     client_secret = os.environ.get('PAYPAL_CLIENT_SECRET', '')
@@ -596,8 +607,8 @@ def payment_callback():
         razorpay_order_id = data.get('razorpay_order_id')
         razorpay_payment_id = data.get('razorpay_payment_id')
         razorpay_signature = data.get('razorpay_signature')
-        if (not razorpay_order_id or razorpay_order_id != order.gateway_order_id or
-                not _verify_razorpay_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature)):
+        if (not razorpay_order_id or razorpay_order_id != order.gateway_order_id
+                or not _verify_razorpay_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature)):
             logger.warning('Razorpay signature verification failed for order %s', order.order_number)
             return jsonify({'success': False, 'message': 'Payment could not be verified.'}), 400
         order.payment_status = 'paid'
@@ -630,5 +641,8 @@ def payment_callback():
 @checkout_bp.route('/checkout/confirmation/<order_number>')
 def order_confirmation(order_number):
     order = Order.query.filter_by(order_number=order_number, user_id=current_user.id).first_or_404()
-    return render_template('storefront/order_confirmation.html', order=order,
-        format_currency=lambda amount: format_currency(amount, order.display_currency))
+    return render_template(
+        'storefront/order_confirmation.html',
+        order=order,
+        format_currency=lambda amount: format_currency(amount, order.display_currency)
+    )

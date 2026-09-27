@@ -8,7 +8,7 @@
 # Rates are normalised to INR so any pair can be derived by division.
 # =============================================================================
 from datetime import datetime
-from flask import current_app, request
+from flask import current_app
 from app import db
 from app.models.currency import Currency
 

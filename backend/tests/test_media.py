@@ -2,7 +2,6 @@
 
 Protects the store's product image/video upload pipeline against invalid files and unsafe names.
 """
-import pytest
 from app.utils.media import allowed_file, generate_safe_filename, save_media_to_db
 from werkzeug.datastructures import FileStorage
 from io import BytesIO

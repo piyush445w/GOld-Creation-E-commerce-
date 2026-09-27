@@ -6,7 +6,6 @@ copies no address text of its own and the user's book stays editable.
 """
 
 from app import db
-from datetime import datetime
 
 
 # Customer's saved delivery address; many addresses per user, many orders per address.

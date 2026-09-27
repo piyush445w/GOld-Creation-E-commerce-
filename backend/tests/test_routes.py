@@ -9,8 +9,6 @@ The ``client`` and ``db_session`` fixtures come from ``conftest.py``, which
 provides an app bound to an isolated in-memory database per test.
 """
 
-import pytest
-from app import db
 from app.models.category import Category
 from app.models.product import Product
 from app.models.user import User
@@ -108,6 +106,8 @@ class TestAdminRoutes:
 # methods build the fixtures the tests share: one admin, and one customer
 # owning two orders in different states (pending and paid) so the status
 # filter has something to discriminate.
+
+
 class TestAdminOrders:
     """Covers the admin orders list, filter, detail view, and access control."""
 

@@ -15,7 +15,7 @@ class SiteAsset(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     asset_key = db.Column(db.String(100), unique=True, nullable=False)
-    data = db.Column(db.LargeBinary(length=(2**32)-1))
+    data = db.Column(db.LargeBinary(length=(2 ** 32) - 1))
     mime_type = db.Column(db.String(100))
     file_size = db.Column(db.BigInteger)
     checksum = db.Column(db.String(64))

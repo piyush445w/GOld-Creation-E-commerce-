@@ -75,7 +75,6 @@ class Config:
     PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET')
     PAYPAL_MODE = os.environ.get('PAYPAL_MODE', 'sandbox')
 
-
     RATELIMIT_DEFAULT = '200 per day; 50 per hour'
     RATELIMIT_STORAGE_URI = 'memory://'
     SECURITY_HEADERS = {

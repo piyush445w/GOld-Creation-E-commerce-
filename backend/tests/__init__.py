@@ -1,4 +1,4 @@
-﻿"""Test package for Gold Creation e-commerce platform.
+"""Test package for Gold Creation e-commerce platform.
 
 This package contains pytest fixtures and test modules covering:
 - Currency conversion and formatting (INR/USD)

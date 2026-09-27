@@ -7,7 +7,6 @@ so inventory decrements and purchase history are tracked at this granularity.
 
 from app import db
 from sqlalchemy import Numeric
-from datetime import datetime
 
 
 # One size/color SKU-level variant of a product, with its own price and stock.
@@ -30,8 +29,7 @@ class ProductVariant(db.Model):
     # Optional variant-specific image (e.g. a different colorway photo).
     image_url = db.Column(db.String(255))
     # Inline BLOB alternative to image_url, with its own MIME type for serving.
-    variant_image_data = db.Column(db.LargeBinary(length=(2**32)-1))
-    variant_image_mime = db.Column(db.String(100))
+    variant_image_data = db.Column(db.LargeBinary(length=(2 ** 32) - 1))
 
     # Cart lines for this variant; used to show "X in cart" and merge duplicates.
     cart_items = db.relationship('CartItem', backref='variant', lazy='dynamic')

@@ -6,7 +6,6 @@ resolves as a real URL or as a CMS page slug.
 """
 
 from app import db
-from datetime import datetime
 
 
 # One clickable menu entry, optionally nested under a parent entry.

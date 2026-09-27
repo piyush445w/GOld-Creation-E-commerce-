@@ -2,7 +2,6 @@
 
 Covers the Indian ethnic wear store's multi-currency support (INR base, USD display).
 """
-import pytest
 from app.utils.currency_utils import convert_amount, format_currency, get_visitor_currency
 from app.models.currency import Currency
 

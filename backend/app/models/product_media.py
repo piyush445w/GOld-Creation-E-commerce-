@@ -34,9 +34,9 @@ class ProductMedia(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # Inline BLOB alternative to media_url for self-contained deployments.
-    media_data = db.Column(db.LargeBinary(length=(2**32)-1))
+    media_data = db.Column(db.LargeBinary(length=(2 ** 32) - 1))
     # Inline BLOB for the thumbnail, used when thumbnail_url is absent.
-    thumbnail_data = db.Column(db.LargeBinary(length=(2**32)-1))
+    thumbnail_data = db.Column(db.LargeBinary(length=(2 ** 32) - 1))
     # Uploaded byte size, surfaced in the admin media manager.
     file_size = db.Column(db.BigInteger)
     # Client-side filename, kept for admin reference and download naming.

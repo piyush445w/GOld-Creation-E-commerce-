@@ -41,6 +41,7 @@ storefront_bp = Blueprint('storefront', __name__)
 def _get_currency():
     return get_visitor_currency(request)
 
+
 def _convert(amount):
     currency = _get_currency()
     return convert_amount(amount, 'INR', currency)
@@ -62,7 +63,8 @@ def index():
     # Build a settings dict keyed by setting_key so the template can look up
     # values (logo, site name, contact) without per-query calls.
     settings = {s.setting_key: s.setting_value for s in SiteSetting.query.all()}
-    return render_template('storefront/home.html',
+    return render_template(
+        'storefront/home.html',
         banners=banners,
         featured_products=featured_products,
         categories=categories,
@@ -130,7 +132,8 @@ def shop():
     products = pagination.items
     categories = Category.query.filter_by(is_active=True).limit(6).all()
 
-    return render_template('storefront/category.html',
+    return render_template(
+        'storefront/category.html',
         products=products,
         categories=categories,
         pagination=pagination,
@@ -174,7 +177,8 @@ def category(slug):
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     products = pagination.items
     categories = Category.query.filter_by(is_active=True).limit(6).all()
-    return render_template('storefront/category.html',
+    return render_template(
+        'storefront/category.html',
         category=category,
         active_category=category,
         products=products,
@@ -235,10 +239,11 @@ def product_detail(slug):
     related_products = Product.query.filter(
         Product.category_id == product.category_id,
         Product.id != product.id,
-        Product.is_active == True
+        Product.is_active
     ).limit(4).all()
 
-    return render_template('storefront/product_detail.html',
+    return render_template(
+        'storefront/product_detail.html',
         product=product,
         media=media,
         variants=variants,
@@ -253,6 +258,8 @@ def product_detail(slug):
 # Route: GET /search  (public)
 # Standalone search results page. Same LIKE logic as /shop but no category,
 # festival, or price filters; pagination is 12/page.
+
+
 @storefront_bp.route('/search')
 def search():
     q = request.args.get('q', '').strip()
@@ -270,7 +277,8 @@ def search():
     per_page = 12
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     products = pagination.items
-    return render_template('storefront/search.html',
+    return render_template(
+        'storefront/search.html',
         products=products,
         pagination=pagination,
         q=q,
@@ -296,7 +304,8 @@ def account_orders():
     per_page = 10
     pagination = Order.query.filter_by(user_id=current_user.id).order_by(Order.placed_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     orders = pagination.items
-    return render_template('storefront/account_orders.html',
+    return render_template(
+        'storefront/account_orders.html',
         orders=orders,
         pagination=pagination,
         format_currency=format_currency
@@ -430,6 +439,3 @@ def newsletter_subscribe():
         db.session.commit()
     flash('Welcome to the Gold Circle! You will hear from us soon.', 'success')
     return redirect(next_url)
-
-
-

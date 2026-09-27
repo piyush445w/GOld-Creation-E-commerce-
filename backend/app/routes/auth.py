@@ -8,7 +8,7 @@ import qrcode
 import io
 import base64
 from app.models.user import User
-from app import db, login_manager
+from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from datetime import datetime, timedelta
@@ -129,6 +129,8 @@ class Admin2FAForm(FlaskForm):
 # Lets an admin enable TOTP 2FA. On POST it persists the session secret
 # (stored temporarily in the session) to the user record. On GET it renders
 # a QR code the admin scans with an authenticator app.
+
+
 @auth_bp.route('/admin/2fa-setup', methods=['GET', 'POST'])
 def admin_2fa_setup():
     admin_user_id = session.get('admin_user_id')
@@ -160,6 +162,8 @@ def admin_2fa_setup():
 # Second step of admin login. Reads pending_2fa_user_id from the session
 # (set by admin_login when totp_enabled is true) and verifies the 6-digit
 # code before establishing an independent admin session.
+
+
 @auth_bp.route('/admin/2fa-verify', methods=['GET', 'POST'])
 @limiter.limit('10 per 15 minutes')
 def admin_2fa_verify():
@@ -377,6 +381,3 @@ def admin_login():
         _admin_login_attempts.pop(ip, None)
         return redirect(url_for('admin.dashboard'))
     return render_template('admin/login.html', form=form)
-
-
-

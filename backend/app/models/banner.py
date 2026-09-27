@@ -7,7 +7,6 @@ joining into the catalogue.
 """
 
 from app import db
-from datetime import datetime
 
 
 # A single carousel slide shown on the storefront landing page.
@@ -30,8 +29,7 @@ class Banner(db.Model):
     start_date = db.Column(db.DateTime)
     end_date = db.Column(db.DateTime)
     # Inline BLOB alternative to image_url, for self-contained deployments.
-    banner_data = db.Column(db.LargeBinary(length=(2**32)-1))
-    # MIME type of banner_data, needed to stream the bytes back to the browser.
+    banner_data = db.Column(db.LargeBinary(length=(2 ** 32) - 1))
     mime_type = db.Column(db.String(100))
     # Size/checksum metadata for cached or de-duplicated uploads.
     file_size = db.Column(db.BigInteger)

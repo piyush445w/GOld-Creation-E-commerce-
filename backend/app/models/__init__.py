@@ -7,24 +7,24 @@ so that importing ``app.models`` registers every table on the shared
 """
 
 # Identity, catalogue, and checkout models, imported in dependency order.
-from app.models.user import User
-from app.models.address import Address
-from app.models.category import Category
-from app.models.product import Product
-from app.models.product_variant import ProductVariant
-from app.models.product_media import ProductMedia
-from app.models.category_media import CategoryMedia
-from app.models.cart import CartItem
-from app.models.wishlist import WishlistItem
-from app.models.order import Order
-from app.models.order_item import OrderItem
-from app.models.coupon import Coupon
-from app.models.page import Page
-from app.models.page_media import PageMedia
-from app.models.site_setting import SiteSetting
-from app.models.site_asset import SiteAsset
+from app.models.user import User  # noqa: F401
+from app.models.address import Address  # noqa: F401
+from app.models.category import Category  # noqa: F401
+from app.models.product import Product  # noqa: F401
+from app.models.product_variant import ProductVariant  # noqa: F401
+from app.models.product_media import ProductMedia  # noqa: F401
+from app.models.category_media import CategoryMedia  # noqa: F401
+from app.models.cart import CartItem  # noqa: F401
+from app.models.wishlist import WishlistItem  # noqa: F401
+from app.models.order import Order  # noqa: F401
+from app.models.order_item import OrderItem  # noqa: F401
+from app.models.coupon import Coupon  # noqa: F401
+from app.models.page import Page  # noqa: F401
+from app.models.page_media import PageMedia  # noqa: F401
+from app.models.site_setting import SiteSetting  # noqa: F401
+from app.models.site_asset import SiteAsset  # noqa: F401
 # Presentation/content models (banners, menus, CMS pages, site settings, currency).
-from app.models.banner import Banner
-from app.models.navigation_menu import NavigationMenu
-from app.models.currency import Currency
-from app.models.review import Review
+from app.models.banner import Banner  # noqa: F401
+from app.models.navigation_menu import NavigationMenu  # noqa: F401
+from app.models.currency import Currency  # noqa: F401
+from app.models.review import Review  # noqa: F401

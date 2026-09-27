@@ -14,7 +14,6 @@
 
 import re
 from flask import Blueprint, Response, abort, request
-from app import db
 from app.models.product_media import ProductMedia
 from app.models.category_media import CategoryMedia
 from app.models.banner import Banner
@@ -54,6 +53,8 @@ def _parse_range_header(range_header, file_size):
 # GET /media/product/<product_id>/<media_id> - public. Streams one full-size
 # gallery asset. The product_id is part of the URL and checked against the
 # row, so a media id cannot be used to pull an asset off a different product.
+
+
 @media_bp.route('/media/product/<int:product_id>/<int:media_id>')
 def serve_product_media(product_id, media_id):
     media = ProductMedia.query.filter_by(
@@ -122,6 +123,8 @@ def serve_thumbnail(media_id):
 # gallery asset for a category. The category_id is part of the URL and checked
 # against the row, so a media id cannot be used to pull an asset off a
 # different category.
+
+
 @media_bp.route('/media/category/<int:category_id>/<int:media_id>')
 def serve_category_media(category_id, media_id):
     media = CategoryMedia.query.filter_by(

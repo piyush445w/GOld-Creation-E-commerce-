@@ -8,7 +8,6 @@ promo can be restricted to a single collection.
 
 from app import db
 from sqlalchemy import Numeric
-from datetime import datetime
 
 
 # A discount code and the conditions under which it may be redeemed.

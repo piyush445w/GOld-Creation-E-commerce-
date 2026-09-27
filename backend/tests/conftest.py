@@ -1,17 +1,17 @@
 import os
 import sys
+import pytest
+
 # Make the backend/ directory importable so `from app import ...` works when pytest runs from the repo root.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-import os
 # Use a deterministic secret key so session/CSRF behavior is stable across test runs.
 os.environ['SECRET_KEY'] = 'test-secret-key'
 
 # Run all tests against an in-memory SQLite DB: fast, isolated, and no setup/teardown needed.
 os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
 
-import pytest
-from app import create_app, db
+from app import create_app, db  # noqa: E402
 
 
 # Fixture (function scope): provides a fresh Flask app in 'testing' mode with created tables.
@@ -46,4 +46,3 @@ def db_session(app):
         yield db.session
         # Roll back any changes so the database stays clean between tests.
         db.session.rollback()
-
