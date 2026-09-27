@@ -1,14 +1,7 @@
-# -*- coding: utf-8 -*-
-# seed.py — Database seed script for the Gold Creation e-commerce platform.
-# Populates a fresh MySQL database with the reference data the app needs to
-# run: admin user, supported currencies, site settings, product categories,
-# the product catalogue (with size/color variants) and product media.
-# Run once during provisioning (e.g. `python seed.py`); every insert is
-# idempotent, so re-running the script is safe and never duplicates rows.
 import hashlib
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import url_for
 from app import create_app, db
 from app.models.category import Category
@@ -20,19 +13,12 @@ from app.models.site_setting import SiteSetting
 from app.models.user import User
 from werkzeug.security import generate_password_hash
 
-# ---- Section: App bootstrap and media configuration ----
-# Create the Flask app in the requested environment (FLASK_ENV) so the seed
-# script uses the same config (DB URL, media route names) as the running app.
 app = create_app(os.environ.get('FLASK_ENV', 'development'))
 
 PICS_DIR = os.environ.get('PICS_DIR') or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'pics')
 if not os.path.isdir(PICS_DIR):
     print(f'PICS_DIR not found: {PICS_DIR}')
 
-# ---- Section: Media type configuration ----
-# Lookup tables that classify media files by extension: which MIME type to
-# store on the ProductMedia row and which extensions count as images vs
-# videos (videos get a separate media_type and a thumbnail image).
 MIME_TYPES = {
     'png': 'image/png',
     'jpg': 'image/jpeg',
@@ -45,11 +31,6 @@ MIME_TYPES = {
 
 IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'avif'}
 
-# ---- Section: Product media catalogue ----
-# Maps each seeded product name to the list of media files (relative to the
-# `pics/` directory) that should be attached to it. Files are loaded as
-# binary blobs and stored on the ProductMedia table; missing files are
-# skipped silently so a partial checkout still seeds the rest.
 PRODUCT_MEDIA_FILES = {
     'Kundan Necklace Set': ['jwellery/ee7da34b-6cce-4e35-999b-ef74d63855ce.jpg'],
     'Oxidized Silver Jhumkas': ['jwellery/7ac7557e-5d51-47c2-854a-a1017ca2aa27.jpg'],
@@ -73,10 +54,6 @@ PRODUCT_MEDIA_FILES = {
 }
 
 # Video media uses the first image of the same product as its poster/thumbnail.
-# ---- Section: Video thumbnail mapping ----
-# For products whose media includes a video, this map says which image index
-# in the same product's media list should be used as the video's poster /
-# thumbnail. Defaults to the first (primary) image when not listed.
 VIDEO_THUMBNAIL_SOURCE = {
     'Banarasi Silk Saree with Zari Work': 0,
     'Kanchipuram Silk Saree': 0,
@@ -92,9 +69,6 @@ def truncate_tables(session):
     session.commit()
 
 
-# ---- Section: Media helper functions ----
-# Derives the extension, MIME type and media_type ('image'/'video') for a
-# media file from its path extension; used when attaching media to a product.
 def _media_info_for(rel_path):
     ext = rel_path.rsplit('.', 1)[-1].lower()
     mime_type = MIME_TYPES.get(ext, 'application/octet-stream')
@@ -102,9 +76,6 @@ def _media_info_for(rel_path):
     return ext, mime_type, media_type
 
 
-# Reads a media file from disk (relative to PICS_DIR) and returns a dict with
-# the raw bytes, size, SHA-256 checksum and basename. Returns None when the
-# file is missing so the caller can skip it without aborting the whole seed.
 def _read_media_file(rel_path):
     absolute = os.path.join(PICS_DIR, rel_path.replace('/', os.sep))
     if not os.path.isfile(absolute):
@@ -120,12 +91,6 @@ def _read_media_file(rel_path):
     }
 
 
-# Attaches ProductMedia rows to the given product, using the media files
-# listed in PRODUCT_MEDIA_FILES for that product name. Real files are stored
-# as blobs and their media_url is generated from the media.serve_product_media
-# route; when no media exists for the product a placeholder image URL is used
-# instead. Returns the list of created ProductMedia objects (used for logging
-# and to confirm seeding worked).
 def seed_product_media(product, product_name):
     rel_paths = PRODUCT_MEDIA_FILES.get(product_name)
     created = []
@@ -160,9 +125,6 @@ def seed_product_media(product, product_name):
                 records.append((media, stored))
             db.session.flush()
 
-            # Generate the media_url for each stored file via the
-            # media.serve_product_media route (needs a request context), and
-            # point video thumbnails at the configured image index.
             thumbnail_index = VIDEO_THUMBNAIL_SOURCE.get(product_name)
             with app.test_request_context():
                 for media, stored in records:
@@ -181,8 +143,6 @@ def seed_product_media(product, product_name):
                     created.append(media)
             return created
 
-    # Fallback: no media files found for this product — attach a single
-    # placeholder image so the product still renders in the catalogue.
     media_url = 'https://via.placeholder.com/600x600?text=' + product_name.replace(' ', '+')
     media = ProductMedia(
         product_id=product.id,
@@ -198,11 +158,6 @@ def seed_product_media(product, product_name):
     return created
 
 
-# ---- Section: Seeding run (app context) ----
-# All seeding happens inside an app context so the DB session and URL
-# generation (media route) work the same way they do in the running app.
-# The whole block is wrapped in a single transaction: either every row is
-# committed or nothing is, keeping the database consistent across re-runs.
 FORCE = '--force' in sys.argv
 
 
@@ -212,10 +167,6 @@ with app.app_context():
     if FORCE:
         truncate_tables(db.session)
     
-    # Default admin credentials come from the ADMIN_EMAIL / ADMIN_PASSWORD
-    # environment variables, falling back to hardcoded defaults. The admin
-    # is only created if no admin user exists yet, so re-running the seed
-    # never creates duplicate admin accounts.
     admin_email = os.environ.get('ADMIN_EMAIL', 'admin@goldcreation.com')
     admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
     if not User.query.filter_by(role='admin').first():
@@ -228,10 +179,6 @@ with app.app_context():
         db.session.add(admin)
         print(f'Default admin created: {admin_email} / {admin_password}')
     
-    # ---- Section: Currencies ----
-    # INR is the base currency (rate 1.0); USD is seeded with a fixed
-    # exchange rate so the storefront can display foreign prices. Each
-    # currency row is inserted only if it does not already exist.
     currencies = [
         ('INR', 'INR', 1.0, True),
         ('USD', '$', 83.0, True),
@@ -241,11 +188,6 @@ with app.app_context():
             c = Currency(code=code, symbol=symbol, exchange_rate_to_inr=rate, is_settlement_enabled=settlement)
             db.session.add(c)
     
-    # ---- Section: Site settings ----
-    # Branding / UI copy and contact details for the storefront. These
-    # SiteSetting rows are read by the frontend templates at render time,
-    # so seeding them here is what makes the site look configured on a fresh
-    # install. Each key is inserted only once (idempotent).
     settings = [
         ('hero_heading', 'Woven in Pure Gold and Heritage Silks'),
         ('hero_subtext', 'Hand-loomed Banarasi brocades, royal velvet lehengas, and heirloom-tissue weaves crafted by generational master weavers in the historic ghats of Varanasi and the royal courts of Chanderi.'),
@@ -262,12 +204,6 @@ with app.app_context():
             s = SiteSetting(setting_key=key, setting_value=value)
             db.session.add(s)
     
-    # ---- Section: Categories ----
-    # The four top-level product categories (Jewelry, Sarees, Kurtis,
-    # Accessories). The `categories` dict maps each category name to its
-    # ORM instance so the product loop below can assign foreign keys; the
-    # commit here guarantees the category rows have IDs before products
-    # reference them. Each category is inserted only if its slug is absent.
     category_data = [
         ('Jewelry', 'jewelry', 'Traditional and contemporary Indian jewelry'),
         ('Sarees', 'sarees', 'Handloom and designer sarees'),
@@ -284,19 +220,9 @@ with app.app_context():
             categories[name] = Category.query.filter_by(slug=slug).first()
     db.session.commit()
     
-    # ---- Section: Product seeding loop ----
-    # Builds the slug from the product name (lowercase, spaces -> hyphens)
-    # and uses it as the unique lookup key so re-running the seed skips
-    # products that already exist.
     def make_slug(name):
         return name.lower().replace(' ', '-')
     
-    # ---- Section: Product catalogue ----
-    # The full catalogue of 15 seeded products, each with its category,
-    # description, base price and a list of size/color variants. Variants
-    # carry an optional price_override (None means "use base_price") and a
-    # stock_quantity. This is the data the storefront ships with on a fresh
-    # install.
     products = [
         {
             'name': 'Kundan Necklace Set',
@@ -478,9 +404,6 @@ with app.app_context():
         },
     ]
     
-    # Iterates the catalogue in order. The product row is created first, then
-    # its variants and media, so each child row can reference the product's
-    # auto-generated ID (flushed here before children are added).
     for pdata in products:
         slug = make_slug(pdata['name'])
         existing = Product.query.filter_by(slug=slug).first()
@@ -496,9 +419,6 @@ with app.app_context():
             db.session.add(product)
             db.session.flush()
             
-            # Each variant is either a size or a colour option; the SKU is
-            # derived from the slug plus the variant attribute, and
-            # price_override=None means the variant sells at base_price.
             for vdata in pdata['variants']:
                 size = vdata.get('size')
                 color = vdata.get('color')
@@ -513,8 +433,6 @@ with app.app_context():
                 )
                 db.session.add(variant)
             
-            # Attach product media (stored blobs or placeholder image) after
-            # the variants so the media rows are tied to the committed product.
             media_items = seed_product_media(product, pdata['name'])
             print(f"  {pdata['name']}: {len(media_items)} media item(s)")
         else:

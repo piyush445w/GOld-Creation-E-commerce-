@@ -32,6 +32,7 @@ COPY --from=builder /install /usr/local
 
 # Copy the rest of the project (app code, configs) into the image.
 COPY . .
+RUN chmod +x /app/backend/start.sh
 
 # Environment defaults for production: no .pyc files, unbuffered stdout for logging.
 ENV FLASK_ENV=production
@@ -42,4 +43,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE ${PORT:-5000}
 
 # Start Gunicorn using the production config in backend/gunicorn.conf.py, loading the app factory from backend.run:app.
-CMD ["gunicorn", "--config", "backend/gunicorn.conf.py", "backend.run:app"]
+CMD ["/app/backend/start.sh"]
