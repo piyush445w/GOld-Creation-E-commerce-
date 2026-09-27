@@ -1,0 +1,3 @@
+﻿# Alembic migrations directory for Gold Creation.
+# Generic single-database configuration: the DB URL is supplied at runtime
+# from the Flask app config (see env.py), so no connection string lives here.

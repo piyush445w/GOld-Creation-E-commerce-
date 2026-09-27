@@ -1,0 +1,23 @@
+﻿# Files/dirs excluded from the Docker build context to keep the image small and avoid leaking secrets.
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env            # Never bake local secrets (DB creds, API keys) into the image.
+.env.local
+.env.*.local
+.git/
+.gitignore
+.vscode/
+.idea/
+node_modules/
+migrations/      # Keep migrations out of the image; they run via Flask-Migrate at deploy time.
+*.sqlite
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+coverage/
+.eggs/
+htmlcov/
+.tox/

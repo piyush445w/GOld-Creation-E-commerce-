@@ -1,0 +1,62 @@
+name: Deploy
+
+# Deploy on every push to main, plus a manual trigger for redeploys.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production   # Requires approval/secret protection configured in the repo settings.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Enable Buildx so the image can be built for multiple architectures and cached in a registry.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate to GitHub Container Registry so we can push and read the build cache.
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Generate image tags (short SHA, branch prefix) and labels for the pushed image.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ lower(replace(github.event.repository.name, /-$/, '')) }}
+          tags: |
+            type=sha,prefix={{branch}}-
+            type=ref,event=tag
+
+      # Build, tag, and push the image, reusing the registry cache to speed up builds.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ lower(replace(github.event.repository.name, /-$/, '')) }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ lower(replace(github.event.repository.name, /-$/, '')) }}:buildcache,mode=max
+
+      # Placeholder for the actual rollout: swap the running container with the new image.
+      - name: Deploy to production
+        run: |
+          echo "Deployment placeholder: integrate your deployment mechanism here."
+          echo "Options: SSH + docker-compose pull/restart, kubectl rollout, ECS task update, etc."
+          echo "Image deployed: ${{ steps.meta.outputs.tags }}"
+
+      # Always emit a status line so the run outcome is visible even if deployment fails.
+      - name: Notify deployment status
+        if: always()
+        run: |
+          echo "Deployment finished for commit ${{ github.sha }} on branch ${{ github.ref_name }}"

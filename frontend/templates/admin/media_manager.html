@@ -1,0 +1,314 @@
+{# Media Library - a cross-product, read-only browser of every uploaded asset.
+   Extends admin/base.html so it inherits the back-office chrome, nav and CSRF
+   helpers. Unlike the per-product gallery on product_form.html, this page lets
+   an admin find and delete media belonging to any product in one place.
+
+   Context it consumes:
+     media            - the filtered page of ProductMedia rows
+     products         - all products, for the "attach to product" dropdown
+     filter_product_id / filter_type - currently applied filters, used to mark
+                                        the active options as `selected`
+   Upload writes go to the product media endpoint and delete to the product
+   media DELETE endpoint, both handled in the admin blueprint. #}
+{% extends "admin/base.html" %}
+{% block title %}Media Library{% endblock %}
+{% block page_title %}Media Library{% endblock %}
+{% block page_title_mobile %}Media{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page header: title plus the button that opens the native file picker. #}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">Media Library</h1>
+        <button type="button" id="btn-upload-media" class="inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            Upload Media
+        </button>
+    </div>
+
+    {# Hidden multi-file input driven programmatically by the upload button.
+       The accept attribute is the browser-side first pass of filtering; the
+       server still validates every file (app/utils/media.py). #}
+    <input type="file" id="library-file-input" class="hidden" multiple accept="image/*,video/*">
+
+    <!-- Upload progress overlay -->
+    {# Full-screen upload progress overlay. Shown while the sequential upload
+       queue runs, and reused to show the "Upload complete!" confirmation just
+       before the page reloads. #}
+    <div id="library-upload-overlay" class="fixed inset-0 z-50 bg-white/80 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl border border-border p-8 w-80 max-w-sm text-center">
+            <div class="w-12 h-12 mx-auto border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p class="mt-4 text-sm text-muted" id="library-upload-label">Uploading...</p>
+            {# Progress bar spans all selected files, not just the current one. #}
+            <div class="w-full h-2 bg-border rounded-full mt-3 overflow-hidden">
+                <div id="library-upload-bar" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <span id="library-upload-text" class="text-xs text-muted mt-1">0%</span>
+        </div>
+    </div>
+
+    {# ---- Filter bar: product, media type, and free-text search ---- #}
+    <div class="bg-white rounded-2xl border border-border p-6">
+        <div class="flex flex-col sm:flex-row gap-4">
+            {# Product filter. Also doubles as the target for new uploads, so an
+               admin must pick a product before uploading. #}
+            <select id="filter-product" class="px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                <option value="">All Products</option>
+                {% for product in products %}
+                    {# Compare as strings so 0/empty filter params still match. #}
+                    <option value="{{ product.id }}" {% if filter_product_id|string == product.id|string %}selected{% endif %}>{{ product.name }}</option>
+                {% endfor %}
+            </select>
+            {# Image/video discriminator, matching the ProductMedia.media_type
+               values that the gallery uses to pick <img> vs <video>. #}
+            <select id="filter-type" class="px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                <option value="">All Types</option>
+                <option value="image" {% if filter_type == 'image' %}selected{% endif %}>Images</option>
+                <option value="video" {% if filter_type == 'video' %}selected{% endif %}>Videos</option>
+            </select>
+            <input type="text" id="filter-search" placeholder="Search media..." class="flex-1 px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+        </div>
+    </div>
+    <script>
+    {# Filtering is server-side: the script only rebuilds the query string and
+       reloads, so the resulting set is a normal, shareable admin URL. #}
+    (function() {
+        const productSelect = document.getElementById('filter-product');
+        const typeSelect = document.getElementById('filter-type');
+        const searchInput = document.getElementById('filter-search');
+        let debounceTimer;
+        {# Collect only the filters that are actually set, so the URL stays clean. #}
+        function applyFilters() {
+            const params = new URLSearchParams();
+            if (productSelect.value) params.set('product_id', productSelect.value);
+            if (typeSelect.value) params.set('type', typeSelect.value);
+            if (searchInput.value.trim()) params.set('q', searchInput.value.trim());
+            window.location.search = params.toString();
+        }
+        productSelect.addEventListener('change', applyFilters);
+        typeSelect.addEventListener('change', applyFilters);
+        {# Debounce the text input so typing does not fire a request per keystroke. #}
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(applyFilters, 500);
+        });
+    })();
+    </script>
+
+    <script>
+    {# ---- Sequential multi-file uploader with a shared progress bar ----
+       Files are uploaded one at a time (not in parallel) because a single
+       progress bar is much easier to reason about, and because large video
+       BLOBs stored in MySQL should not be inserted concurrently. #}
+    (function() {
+        const csrfToken = '{{ csrf_token() }}';
+        const uploadBtn = document.getElementById('btn-upload-media');
+        const fileInput = document.getElementById('library-file-input');
+        const productSelect = document.getElementById('filter-product');
+        const overlay = document.getElementById('library-upload-overlay');
+        const progressBar = document.getElementById('library-upload-bar');
+        const progressText = document.getElementById('library-upload-text');
+        const progressLabel = document.getElementById('library-upload-label');
+        {# Guard so a template change that drops the button cannot throw here. #}
+        if (!uploadBtn || !fileInput) return;
+
+        {# The real <input type="file"> is hidden, so the button proxies its click. #}
+        uploadBtn.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', function() {
+            const files = Array.from(fileInput.files);
+            if (!files.length) return;
+            const productId = productSelect.value;
+            {# Media has no independent owner - it must hang off a product, so a
+               product selection is required before the upload can start. #}
+            if (!productId) {
+                alert('Please select a product to attach the media to, then try again.');
+                fileInput.value = '';
+                return;
+            }
+
+            {# Classify each file from its MIME prefix. The value matches the
+               media_type column the server validates against. #}
+            const batches = [];
+            files.forEach(function(file) {
+                const type = file.type.indexOf('video/') === 0 ? 'video' : 'image';
+                batches.push({ type: type, file: file });
+            });
+            {# Total byte size across all files, used to turn per-file progress
+               into one overall percentage. Defaults to 1 to avoid divide-by-zero. #}
+            const totalBytes = batches.reduce(function(sum, b) { return sum + b.file.size; }, 0) || 1;
+            let doneBytes = 0;
+            let index = 0;
+
+            {# Reveal the overlay and reset the bar before the first request. #}
+            overlay.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+            progressLabel.textContent = 'Uploading...';
+
+            {# Single exit point for the queue: hides the overlay, clears the
+               input so re-picking the same file re-fires `change`, and either
+               reloads on success or surfaces the server's error message. #}
+            function finish(ok, message) {
+                overlay.classList.add('hidden');
+                fileInput.value = '';
+                if (ok) {
+                    progressLabel.textContent = 'Upload complete!';
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    alert(message || 'Upload failed. Please try again.');
+                }
+            }
+
+            {# Uploads files one after another, recursing on each success so the
+               next file starts only after the previous BLOB is committed. #}
+            function uploadNext() {
+                if (index >= batches.length) {
+                    finish(true);
+                    return;
+                }
+                const batch = batches[index++];
+                {# `base` is the byte count already completed, so the running
+                   total stays correct as each file finishes. #}
+                const base = doneBytes;
+                const formData = new FormData();
+                formData.append('file', batch.file);
+                formData.append('media_type', batch.type);
+                formData.append('csrf_token', csrfToken);
+
+                const xhr = new XMLHttpRequest();
+                {# Aggregate progress: bytes finished so far, plus bytes loaded
+                   within the file currently uploading, over the total. #}
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (!e.lengthComputable) return;
+                    const percent = Math.min(100, Math.round(((base + e.loaded) / totalBytes) * 100));
+                    progressBar.style.width = percent + '%';
+                    progressText.textContent = percent + '%';
+                });
+                xhr.open('POST', '/admin/products/' + productId + '/media');
+                xhr.onload = function() {
+                    {# Any non-200 aborts the whole batch and reports the body,
+                       which carries the server's validation message. #}
+                    if (xhr.status !== 200) {
+                        finish(false, 'Upload failed: ' + (xhr.responseText || 'Please try again.'));
+                        return;
+                    }
+                    doneBytes = base + batch.file.size;
+                    uploadNext();
+                };
+                xhr.onerror = function() {
+                    finish(false, 'Upload failed. Please check your connection and try again.');
+                };
+                xhr.send(formData);
+            }
+
+            uploadNext();
+        });
+    })();
+    </script>
+
+    {# ---- Media grid: responsive thumbnail grid of the filtered results ---- #}
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {% if media %}
+            {% for media in media %}
+                {# One square card per asset. media_id/product_id are duplicated as
+                   data-* attributes so the delete handler can build its URL
+                   without re-querying the DOM. #}
+                <div class="media-card aspect-square rounded-xl overflow-hidden border border-border group relative" data-media-id="{{ media.id }}">
+                    {# Render an <img> or a <video> purely from media_type, so
+                       mixed image/video galleries need no extra branching here. #}
+                    {% if media.media_type == 'image' %}
+                        <img src="{{ media.media_url }}" alt="" class="w-full h-full object-cover">
+                    {% elif media.media_type == 'video' %}
+                        {# Videos get a poster frame plus an overlay play badge,
+                           since autoplay is undesirable in an admin grid. #}
+                        <video src="{{ media.media_url }}" poster="{{ media.thumbnail_url or '' }}" class="w-full h-full object-cover"></video>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <div class="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
+                                <i data-lucide="play" class="w-5 h-5 text-white"></i>
+                            </div>
+                        </div>
+                    {% endif %}
+                    {# Hover-revealed action bar: open the asset in a new tab, or
+                       delete it. Opacity is 0 until the card is hovered. #}
+                    <div class="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {# View: opens media_url directly in a new tab. #}
+                        <button type="button" class="media-view-btn p-2 bg-white rounded-lg hover:bg-gray-100 transition-colors" data-media-id="{{ media.id }}" data-product-id="{{ media.product_id }}" data-url="{{ media.media_url }}">
+                            <i data-lucide="eye" class="w-4 h-4 text-[#1A1A1A]"></i>
+                        </button>
+                        {# Delete: handled by the JS in the extra_js block below. #}
+                        <button type="button" class="media-delete-btn p-2 bg-white rounded-lg hover:bg-gray-100 transition-colors" data-media-id="{{ media.id }}" data-product-id="{{ media.product_id }}">
+                            <i data-lucide="trash-2" class="w-4 h-4 text-[#D64545]"></i>
+                        </button>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            {# Empty state shown when no media matches the current filters. #}
+            <div class="col-span-full text-center py-12">
+                <i data-lucide="images" class="w-12 h-12 text-muted mx-auto mb-4"></i>
+                <p class="text-muted">No media uploaded yet.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+{# ---- Per-card view and delete handlers (loaded with the admin page) ----
+   Bound in extra_js so they run after the media grid above exists in the DOM. #}
+(function() {
+    var csrfToken = '{{ csrf_token() }}';
+
+    {# View: open the full-size asset in a new tab for inspection. #}
+    document.querySelectorAll('.media-view-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var url = this.dataset.url;
+            if (url) window.open(url, '_blank');
+        });
+    });
+
+    {# Delete: confirm, then issue a fetch DELETE with the CSRF token in a
+       header (this is not a form post, so the token cannot ride in the body).
+       On success the card is removed from the DOM so no page reload is needed. #}
+    document.querySelectorAll('.media-delete-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var mediaId = this.dataset.mediaId;
+            var productId = this.dataset.productId;
+            if (!confirm('Are you sure you want to delete this media?')) return;
+
+            {# Swap in a spinner and lock the button to prevent double submits. #}
+            var originalHTML = this.innerHTML;
+            this.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>';
+            this.disabled = true;
+            lucide.createIcons();
+
+            fetch('/admin/products/' + productId + '/media/' + mediaId, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            }).then(function(r) { return r.json(); }).then(function(data) {
+                {# Success: drop the card. Failure: restore the original icon and
+                   report the server's message. #}
+                if (data.success) {
+                    var card = btn.closest('.media-card');
+                    if (card) card.remove();
+                } else {
+                    btn.innerHTML = originalHTML;
+                    btn.disabled = false;
+                    lucide.createIcons();
+                    alert(data.message || 'Delete failed.');
+                }
+            }).catch(function() {
+                {# Network-level failure: same restoration path as a server error. #}
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+                lucide.createIcons();
+                alert('Network error. Please try again.');
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

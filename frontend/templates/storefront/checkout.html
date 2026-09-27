@@ -1,0 +1,598 @@
+{# Checkout - the single page that turns a cart (or a Buy Now item) into a paid
+   order. Extends base.html.
+
+   View variables supplied by the checkout blueprint:
+     items       - the CartItem (or single Buy Now) rows being purchased
+     subtotal / shipping / discount / total - already computed server-side, so
+                    the figures shown here match what place_order will charge
+     addresses   - the shopper's saved Address rows, for one-click selection
+     is_buy_now  - true when arriving from the PDP "Buy Now" button
+     currency    - the display/settlement currency ('INR' or 'USD')
+     paypal_client_id - PayPal SDK key, only set when PayPal is configured
+
+   Two very different payment paths share this one form: Cash on Delivery posts
+   the form normally, while the card/PayPal options are intercepted by the
+   script in extra_js, which creates the order via fetch() first and then hands
+   off to the gateway. See the gateway handlers at the bottom. #}
+{% extends "base.html" %}
+{% block title %}Checkout{% endblock %}
+{% block content %}
+{# Breadcrumb. The trail reflects the entry point: Cart for a normal checkout,
+   an extra "Buy Now" step for the express path. #}
+<nav class="text-sm text-[#6B6B6B] py-4">
+    <div class="max-w-7xl mx-auto px-4">
+        <a href="{{ url_for('storefront.index') }}" class="hover:text-[#8B1E3F]">Home</a>
+        <span class="mx-2">/</span>
+        {% if is_buy_now %}
+        <span class="text-[#1A1A1A]">Buy Now</span>
+        <span class="mx-2">/</span>
+        <span class="text-[#1A1A1A]">Checkout</span>
+        {% else %}
+        <a href="{{ url_for('cart.view_cart') }}" class="hover:text-[#8B1E3F]">Cart</a>
+        <span class="mx-2">/</span>
+        <span class="text-[#1A1A1A]">Checkout</span>
+        {% endif %}
+    </div>
+</nav>
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <h1 class="font-serif text-3xl mb-8">{% if is_buy_now %}Express Checkout{% else %}Checkout{% endif %}</h1>
+    {# Notice clarifying that the express path buys only the single item on the
+       PDP, not the rest of the cart. #}
+    {% if is_buy_now %}
+    <p class="text-sm text-[#8B1E3F] mb-6 font-medium">Buy Now - Complete your purchase for this item only</p>
+    {% endif %}
+
+    {# The one form that submits the whole checkout. COD lets it submit
+       normally; the gateway options are intercepted client-side below. #}
+    <form method="POST" action="{{ url_for('checkout.place_order') }}" id="checkout-form">
+        {# CSRF: required on the native submit and repeated in the X-CSRFToken
+           header of every fetch() call, since those are not form posts. #}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        {# Coupon code is carried as a hidden field, seeded from ?coupon= so a
+           code applied on the cart page survives the trip to checkout. #}
+        <input type="hidden" name="coupon_code" id="coupon-code-input" value="{{ request.args.get('coupon', '') }}"/>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-6">
+                {# ---- Contact information. Name/email are pre-filled for a
+                   signed-in shopper and left blank for a guest, who is given an
+                   account automatically when the order is placed. ---- #}
+                <div class="border border-[#E5E2DD] rounded-2xl p-6">
+                    <h3 class="font-medium text-lg mb-4">Contact Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-medium mb-1 block">Full Name</label>
+                            <input type="text" name="name" value="{{ current_user.name if current_user.is_authenticated else '' }}" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                        </div>
+                        {# type=email gives free client-side format validation;
+                           this address receives the order confirmation. #}
+                        <div>
+                            <label class="text-sm font-medium mb-1 block">Email</label>
+                            <input type="email" name="email" value="{{ current_user.email if current_user.is_authenticated else '' }}" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                        </div>
+                        {# Phone is required because order notifications are sent
+                           by SMS/WhatsApp through Twilio. Never pre-filled: the
+                           User model has no phone column in this version. #}
+                        <div>
+                            <label class="text-sm font-medium mb-1 block">Phone</label>
+                            <input type="tel" name="phone" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                        </div>
+                    </div>
+                </div>
+
+                {# ---- Shipping address. These fields map onto an Address row;
+                   place_order either reuses the address_id chosen below or
+                   creates a new one from these values. ---- #}
+                <div class="border border-[#E5E2DD] rounded-2xl p-6">
+                    <h3 class="font-medium text-lg mb-4">Shipping Address</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-sm font-medium mb-1 block">Address Line 1</label>
+                            <input type="text" name="line1" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                        </div>
+                        {# Optional second line (flat, suite, landmark). #}
+                        <div>
+                            <label class="text-sm font-medium mb-1 block">Address Line 2</label>
+                            <input type="text" name="line2" class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="text-sm font-medium mb-1 block">City</label>
+                                <input type="text" name="city" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium mb-1 block">State</label>
+                                <input type="text" name="state" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium mb-1 block">Country</label>
+                                <input type="text" name="country" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium mb-1 block">Postal Code</label>
+                                <input type="text" name="postal_code" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# ---- Saved addresses: an alternative to retyping the address.
+                   Only rendered when the shopper already has saved addresses.
+                   Selecting one submits address_id, which takes precedence over
+                   the typed fields above. ---- #}
+                {% if addresses %}
+                <div class="border border-[#E5E2DD] rounded-2xl p-6">
+                    <h3 class="font-medium text-lg mb-4">Saved Addresses</h3>
+                    <div class="space-y-3">
+                        {% for address in addresses %}
+                        {# Whole label is clickable via the wrapping <label>, so the
+                           radio can be focused/clicked anywhere on the card. #}
+                        <label class="flex items-start gap-3 p-4 border border-[#E5E2DD] rounded-xl cursor-pointer hover:border-[#8B1E3F] transition">
+                            <input type="radio" name="address_id" value="{{ address.id }}" 
+       data-line1="{{ address.line1|e }}" 
+       data-line2="{{ address.line2|e }}" 
+       data-city="{{ address.city|e }}" 
+       data-state="{{ address.state|e }}" 
+       data-country="{{ address.country|e }}" 
+       data-postal_code="{{ address.postal_code|e }}" 
+       class="mt-1">
+                            <div>
+                                <p class="font-medium">{{ address.label }}</p>
+                                <p class="text-sm text-[#6B6B6B]">{{ address.line1 }}, {{ address.city }}, {{ address.state }} - {{ address.postal_code }}, {{ address.country }}</p>
+                            </div>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            {# ---- Order summary column. Sticky so the totals and the Place
+               Order button stay visible while the shopper scrolls the form. -- #}
+            <div class="lg:col-span-1">
+                <div class="border border-[#E5E2DD] rounded-2xl p-6 sticky top-24">
+                    <h3 class="font-medium text-lg mb-4">Order Summary</h3>
+                    {# Reminder that the express path ignores the rest of the cart. #}
+                    {% if is_buy_now %}
+                    <div class="mb-4 p-3 bg-[#8B1E3F]/5 border border-[#8B1E3F]/20 rounded-xl">
+                        <p class="text-sm text-[#8B1E3F] font-medium">Express Checkout - Single Item</p>
+                    </div>
+                    {% endif %}
+                    {# Scrollable line-item list so a large cart cannot push the
+                       totals and submit button off screen. #}
+                    <div class="space-y-3 max-h-64 overflow-y-auto mb-4">
+                        {% for item in items %}
+                        <div class="flex gap-3">
+                            {# Thumbnail: the first image-ordered asset of the
+                               product. Video-only products render an empty tile
+                               rather than a <video>, to avoid loading clips. #}
+                            <div class="w-12 h-12 rounded-lg overflow-hidden bg-[#FAF9F7] flex-shrink-0">
+                                {% set first_image = item.variant.product.media.all()|sort(attribute='display_order')|first %}{% if first_image and first_image.media_type == 'image' %}
+                                <img src="{{ first_image.media_url if first_image else '' }}" alt="" class="w-full h-full object-cover">
+                                {% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium truncate">{{ item.variant.product.name }}</p>
+                                <p class="text-xs text-[#6B6B6B]">Qty: {{ item.quantity }}</p>
+                            </div>
+                            {# Unit price falls back to the product's base price when
+                               the variant carries no price_override. #}
+                            <span class="text-sm font-medium">{{ format_currency((item.variant.price_override if item.variant.price_override else item.variant.product.base_price) * item.quantity) }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {# Totals. These are the view's precomputed values, not values
+                       recomputed in the template, so the displayed total is the
+                       one place_order will validate and charge. #}
+                    <div class="space-y-3 border-t border-[#E5E2DD] pt-3">
+                        <div class="flex justify-between py-2">
+                            <span class="text-[#6B6B6B]">Subtotal</span>
+                            <span class="font-medium">{{ format_currency(subtotal) }}</span>
+                        </div>
+                        <div class="flex justify-between py-2">
+                            <span class="text-[#6B6B6B]">Shipping</span>
+                            <span class="font-medium">{{ format_currency(shipping) }}</span>
+                        </div>
+                        {# Discount row only appears when a valid coupon was
+                           applied; the minus sign is in the template, not the
+                           stored value. #}
+                        {% if discount > 0 %}
+                        <div class="flex justify-between py-2">
+                            <span class="text-[#6B6B6B]">Discount</span>
+                            <span class="font-medium text-green-600">-{{ format_currency(discount) }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="flex justify-between py-3 border-t border-[#E5E2DD]">
+                            <span class="font-semibold text-lg">Total</span>
+                            <span class="font-semibold text-lg text-[#8B1E3F]">{{ format_currency(total) }}</span>
+                        </div>
+                    </div>
+
+                    {# ---- Payment method. COD is the default and needs no
+                       gateway. The online option is currency-dependent: Razorpay
+                       for INR, PayPal otherwise, so an unsupported
+                       gateway/currency combination is never offered. ---- #}
+                    <div class="mt-4">
+                        <label class="text-sm font-medium mb-2 block">Payment Method</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2 p-3 border border-[#E5E2DD] rounded-xl cursor-pointer hover:border-[#8B1E3F] transition">
+                                <input type="radio" name="payment_method" value="cod" checked class="accent-[#8B1E3F]">
+                                <span class="text-sm">Cash on Delivery</span>
+                            </label>
+                            {% if currency == 'INR' %}
+                            <label class="flex items-center gap-2 p-3 border border-[#E5E2DD] rounded-xl cursor-pointer hover:border-[#8B1E3F] transition">
+                                <input type="radio" name="payment_method" value="razorpay" class="accent-[#8B1E3F]">
+                                <span class="text-sm">Razorpay (UPI / Card)</span>
+                            </label>
+                            {% else %}
+                            <label class="flex items-center gap-2 p-3 border border-[#E5E2DD] rounded-xl cursor-pointer hover:border-[#8B1E3F] transition">
+                                <input type="radio" name="payment_method" value="paypal" class="accent-[#8B1E3F]">
+                                <span class="text-sm">PayPal</span>
+                            </label>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {# Submit. For COD the browser posts the form directly; for a
+                       gateway the submit handler cancels the navigation and takes
+                       over (see extra_js). #}
+                    <button type="submit" class="w-full bg-[#8B1E3F] text-white py-4 rounded-full mt-6 hover:bg-[#8B1E3F]/90 transition">Place Order</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+{# PayPal modal. PayPal's SDK renders its own buttons into a container, so it
+   needs a dialog rather than an inline redirect. Hidden until the shopper
+   picks PayPal and the SDK has been loaded. #}
+<div id="paypal-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full">
+        <h3 class="font-medium text-lg mb-4">Complete Payment with PayPal</h3>
+        {# PayPal SDK mounts its approval button here. #}
+        <div id="paypal-button-container"></div>
+        <button type="button" id="close-paypal-modal" class="mt-4 w-full py-2 border border-[#E5E2DD] rounded-xl text-sm hover:bg-[#FAF9F7] transition">Cancel</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{# ---- Load exactly one gateway SDK, matching the chosen currency. Conditional
+   loading keeps the unused provider off the page entirely. The PayPal SDK is
+   further guarded on the client id being configured, so a deployment without
+   PayPal credentials does not request a script it cannot use. ---- #}
+{% if currency == 'INR' %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+{% else %}
+{% if paypal_client_id %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency={{ currency }}"></script>
+{% endif %}
+{% endif %}
+
+<script>
+(function() {
+    const addressRadios = document.querySelectorAll('input[name="address_id"]');
+    const line1Input = document.querySelector('input[name="line1"]');
+    const line2Input = document.querySelector('input[name="line2"]');
+    const cityInput = document.querySelector('input[name="city"]');
+    const stateInput = document.querySelector('input[name="state"]');
+    const countryInput = document.querySelector('input[name="country"]');
+    const postalCodeInput = document.querySelector('input[name="postal_code"]');
+    const requiredFields = [line1Input, cityInput, stateInput, countryInput, postalCodeInput];
+
+    function populateAddressFields(radio) {
+        if (!radio || !radio.dataset.line1) return;
+        line1Input.value = radio.dataset.line1 || '';
+        line2Input.value = radio.dataset.line2 || '';
+        cityInput.value = radio.dataset.city || '';
+        stateInput.value = radio.dataset.state || '';
+        countryInput.value = radio.dataset.country || '';
+        postalCodeInput.value = radio.dataset.postal_code || '';
+        
+        requiredFields.forEach(function(field) {
+            field.removeAttribute('required');
+        });
+    }
+
+    function clearAddressFields() {
+        line1Input.value = '';
+        line2Input.value = '';
+        cityInput.value = '';
+        stateInput.value = '';
+        countryInput.value = '';
+        postalCodeInput.value = '';
+        
+        requiredFields.forEach(function(field) {
+            field.setAttribute('required', 'required');
+        });
+    }
+
+    addressRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                populateAddressFields(this);
+            }
+        });
+    });
+
+    if (addressRadios.length > 0) {
+        const firstChecked = document.querySelector('input[name="address_id"]:checked');
+        if (firstChecked) {
+            populateAddressFields(firstChecked);
+        }
+    }
+})();
+</script>
+
+<script>
+{# ---- Form submit router. Only the gateway options are intercepted; Cash on
+   Delivery is left to submit the form normally. The order is created BEFORE
+   the gateway opens, so a payment is always traceable to a persisted order. ---- #}
+document.getElementById('checkout-form').addEventListener('submit', async function(e) {
+    const selectedMethod = document.querySelector('input[name="payment_method"]:checked').value;
+    
+    if (selectedMethod === 'razorpay') {
+        e.preventDefault();
+        await handleRazorpayPayment(this);
+    } else if (selectedMethod === 'paypal') {
+        e.preventDefault();
+        await handlePayPalPayment(this);
+    }
+});
+
+{# Razorpay (INR) flow:
+   1. POST the checkout form  -> creates the Order, returns its order_number
+   2. POST /checkout/initiate-payment -> server creates the Razorpay order and
+      returns key_id/amount/currency/order_id for the checkout options
+   3. Open Razorpay's modal; on its success handler POST /payment-callback,
+      which verifies the HMAC signature server-side before marking it paid
+   4. Redirect to the confirmation page
+   The order row is created in step 1 regardless of outcome, so a customer who
+   abandons the modal still has a pending order that support can reconcile. #}
+async function handleRazorpayPayment(form) {
+    const formData = new FormData(form);
+    
+    try {
+        {# Step 1: persist the order. The CSRF token travels in a header because
+           this is fetch(), not a form post. #}
+        const orderResponse = await fetch('{{ url_for("checkout.place_order") }}', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': '{{ csrf_token() }}',
+            },
+            body: formData
+        });
+        
+        const orderData = await orderResponse.json();
+        if (!orderResponse.ok) {
+            if (orderData.error === 'login_required' && orderData.login_url) {
+                window.location.href = orderData.login_url;
+                return;
+            }
+            alert('Failed to create order. Please try again.');
+            return;
+        }
+        if (!orderData.success || !orderData.order_number) {
+            alert('Failed to create order. Please try again.');
+            return;
+        }
+        
+        {# Step 2: ask the server to create the gateway order for that order. #}
+        const paymentFormData = new FormData();
+        paymentFormData.append('payment_method', 'razorpay');
+        paymentFormData.append('order_id', orderData.order_number);
+        
+        const paymentResponse = await fetch('/checkout/initiate-payment', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': '{{ csrf_token() }}',
+            },
+            body: paymentFormData
+        });
+        
+        const paymentData = await paymentResponse.json();
+        if (!paymentResponse.ok) {
+            if (paymentData.error === 'login_required' && paymentData.login_url) {
+                window.location.href = paymentData.login_url;
+                return;
+            }
+            alert('Failed to initiate payment. Please try again.');
+            return;
+        }
+        if (!paymentData.success) {
+            alert('Failed to initiate payment. Please try again.');
+            return;
+        }
+        
+        {# Razorpay checkout options. Amount/currency/order_id all come from the
+           server so the figure the customer authorises is the one we recorded. #}
+        const options = {
+            key: paymentData.key_id,
+            amount: paymentData.amount,
+            currency: paymentData.currency,
+            name: 'Gold Creation',
+            order_id: paymentData.order_id,
+            {# Called by Razorpay after a successful payment. Signature
+               verification happens server-side in the callback below - never
+               trust the client to declare that money moved. #}
+            handler: async function(response) {
+                const verifyResp = await fetch('/checkout/payment-callback', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        order_number: orderData.order_number,
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_signature: response.razorpay_signature
+                    })
+                });
+                const verifyData = await verifyResp.json();
+                {# A failed verification is a real money risk, so the shopper is
+                   told to contact support with the order number instead of
+                   simply retrying and risking a double charge. #}
+                if (!verifyResp.ok || !verifyData.success) {
+                    alert('We could not verify your payment. If an amount was deducted, please contact us with order ' + orderData.order_number + ' before retrying.');
+                    return;
+                }
+                window.location.href = '/checkout/confirmation/' + orderData.order_number;
+            },
+            {# Pre-fill the gateway form from what was already typed, and match
+               the brand colour. #}
+            prefill: {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                contact: formData.get('phone')
+            },
+            theme: {
+                color: '#8B1E3F'
+            }
+        };
+        
+        {# Guard against the CDN script being blocked: fall back to COD rather
+           than leaving a submit button that does nothing. #}
+        if (typeof Razorpay !== 'undefined') {
+            const rzp = new Razorpay(options);
+            rzp.open();
+        } else {
+            alert('Payment gateway not available. Please try Cash on Delivery.');
+        }
+    } catch (error) {
+        console.error('Payment error:', error);
+        alert('Payment failed. Please try again.');
+    }
+}
+
+{# PayPal (non-INR) flow mirrors the Razorpay one:
+   create order -> initiate payment -> render the SDK buttons in the modal ->
+   onApprove captures the payment and the server confirms it via the callback.
+   PayPal requires the shopper to interact inside its own UI, hence the modal. #}
+async function handlePayPalPayment(form) {
+    const formData = new FormData(form);
+    
+    try {
+        {# Step 1: persist the order, as in the Razorpay flow. #}
+        const orderResponse = await fetch('{{ url_for("checkout.place_order") }}', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': '{{ csrf_token() }}',
+            },
+            body: formData
+        });
+        
+        const orderData = await orderResponse.json();
+        if (!orderResponse.ok) {
+            if (orderData.error === 'login_required' && orderData.login_url) {
+                window.location.href = orderData.login_url;
+                return;
+            }
+            alert('Failed to create order. Please try again.');
+            return;
+        }
+        if (!orderData.success || !orderData.order_number) {
+            alert('Failed to create order. Please try again.');
+            return;
+        }
+        
+        {# Step 2: create the PayPal order server-side. #}
+        const paymentFormData = new FormData();
+        paymentFormData.append('payment_method', 'paypal');
+        paymentFormData.append('order_id', orderData.order_number);
+        
+        const paymentResponse = await fetch('/checkout/initiate-payment', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': '{{ csrf_token() }}',
+            },
+            body: paymentFormData
+        });
+        
+        const paymentData = await paymentResponse.json();
+        if (!paymentResponse.ok) {
+            if (paymentData.error === 'login_required' && paymentData.login_url) {
+                window.location.href = paymentData.login_url;
+                return;
+            }
+            alert('Failed to initiate payment. Please try again.');
+            return;
+        }
+        if (!paymentData.success) {
+            alert('Failed to initiate payment. Please try again.');
+            return;
+        }
+        
+        {# Step 3: reveal the modal and mount the SDK's buttons into it. The
+           container is cleared first so a retry does not stack two button
+           sets on top of each other. #}
+        const modal = document.getElementById('paypal-modal');
+        const container = document.getElementById('paypal-button-container');
+        container.innerHTML = '';
+        modal.classList.remove('hidden');
+        
+        paypal.Buttons({
+            {# Amount and currency come from the server; custom_id carries our
+               order number so the capture can be tied back to it. #}
+            createOrder: function(data, actions) {
+                return actions.order.create({
+                    purchase_units: [{
+                        amount: {
+                            value: paymentData.amount,
+                            currency_code: paymentData.currency
+                        },
+                        custom_id: orderData.order_number
+                    }]
+                });
+            },
+            {# PayPal-side success. The capture actually moves the money, then
+               the server re-checks it independently in the callback. #}
+            onApprove: function(data, actions) {
+                return actions.order.capture().then(async function(details) {
+                    const verifyResp = await fetch('/checkout/payment-callback', {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': '{{ csrf_token() }}',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            order_number: orderData.order_number,
+                            paypal_order_id: data.orderID
+                        })
+                    });
+                    const verifyData = await verifyResp.json();
+                    if (!verifyResp.ok || !verifyData.success) {
+                        alert('We could not verify your payment. If an amount was deducted, please contact us with order ' + orderData.order_number + ' before retrying.');
+                        modal.classList.add('hidden');
+                        return;
+                    }
+                    window.location.href = '/checkout/confirmation/' + orderData.order_number;
+                });
+            },
+            {# Buyer or PayPal-side failure: log the detail and close the modal so
+               the shopper is not trapped in it. #}
+            onError: function(err) {
+                console.error('PayPal error:', err);
+                alert('PayPal payment failed. Please try again.');
+                modal.classList.add('hidden');
+            }
+        }).render('#paypal-button-container');
+    } catch (error) {
+        console.error('Payment error:', error);
+        alert('Payment failed. Please try again.');
+    }
+}
+
+{# Manual escape hatch: lets the shopper dismiss the PayPal modal and try a
+   different payment method. #}
+document.getElementById('close-paypal-modal').addEventListener('click', function() {
+    document.getElementById('paypal-modal').classList.add('hidden');
+});
+</script>
+{% endblock %}

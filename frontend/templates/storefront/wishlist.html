@@ -1,0 +1,75 @@
+?{# wishlist.html - renders the storefront My Wishlist page (discovery/engagement step).
+   Extends base.html. Consumes context: items (list of wishlist item objects),
+   csrf_token. Role: shows saved items; each card links to storefront.product_detail,
+   POSTs to cart.add_to_cart and wishlist.toggle_wishlist endpoints. #}
+{% extends "base.html" %}
+{% from "storefront/_currency_macros.html" import currency_price %}
+{# Title block: page title shown in browser tab #}
+{% block title %}My Wishlist{% endblock %}
+{# Content block: breadcrumb, wishlist grid or empty-state message #}
+{% block content %}
+    {# Breadcrumb: links back to storefront.index, "Wishlist" shown as current #}
+    <nav class="text-sm text-[#6B6B6B] py-4">
+    <div class="max-w-7xl mx-auto px-4">
+        <a href="{{ url_for('storefront.index') }}" class="hover:text-[#8B1E3F]">Home</a>
+        <span class="mx-2">/</span>
+        <span class="text-[#1A1A1A]">Wishlist</span>
+    </div>
+</nav>
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <h1 class="font-serif text-3xl mb-8">My Wishlist</h1>
+
+    {# Wishlist grid: loops over 'items' in a responsive 2/4-col layout #}
+    {% if items %}
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {% for item in items %}
+        {# Wishlist product card: thumbnail, name, price via currency_price, add-to-cart + remove forms #}
+        <div class="group cursor-pointer">
+            <a href="{{ url_for('storefront.product_detail', slug=item.product.slug) }}" class="block">
+                <div class="aspect-[3/4] rounded-2xl overflow-hidden bg-[#FAF9F7] relative">
+                    {% set first_image = item.product.media.all()|sort(attribute='display_order')|first %}{% if first_image and first_image.media_type == 'image' %}
+                    <img src="{{ first_image.media_url if first_image else "" }}" alt="{{ item.product.name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                    {% else %}
+                    <div class="w-full h-full flex items-center justify-center text-[#6B6B6B] text-sm">No Image</div>
+                    {% endif %}
+                </div>
+                <div class="p-4">
+                    <h3 class="font-medium text-[#1A1A1A] truncate">{{ item.product.name }}</h3>
+                </div>
+            </a>
+            <div class="px-4">
+                {{ currency_price(item.product.base_price, format_currency(item.product.base_price)) }}
+            </div>
+            <div class="flex gap-2 mt-2">
+                {# Add-to-cart form: POST to cart.add_to_cart endpoint with csrf_token, product_variant_id and quantity #}
+                <form action="{{ url_for('cart.add_to_cart') }}" method="POST" class="flex-1">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="product_variant_id" value="{{ item.product.variants.first().id if item.product.variants.first() else '' }}"/>
+                    <input type="hidden" name="quantity" value="1"/>
+                    <button type="submit" class="w-full bg-[#8B1E3F] text-white py-3 rounded-full font-medium hover:bg-[#8B1E3F]/90 transition text-sm">Add to Cart</button>
+                </form>
+                {# Wishlist toggle (remove) form: POST to wishlist.toggle_wishlist endpoint with csrf_token, product_id #}
+                <form action="{{ url_for('wishlist.toggle_wishlist') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="product_id" value="{{ item.product.id }}"/>
+                    <button type="submit" class="w-10 h-10 border border-[#E5E2DD] rounded-full flex items-center justify-center hover:border-red-500 hover:text-red-500 transition">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {# Empty wishlist state: shown when 'items' is falsy; links to storefront.shop #}
+    {% else %}
+    <div class="text-center py-12">
+        <i data-lucide="heart" class="w-16 h-16 text-[#E5E2DD] mx-auto mb-4"></i>
+        <p class="text-[#6B6B6B] mb-6">Your wishlist is empty.</p>
+        <a href="{{ url_for('storefront.shop') }}" class="inline-block bg-[#1A1A1A] text-white px-8 py-3 rounded-full hover:bg-[#1A1A1A]/90 transition">Explore Products</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+

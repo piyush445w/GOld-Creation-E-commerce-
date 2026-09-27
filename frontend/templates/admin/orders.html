@@ -1,0 +1,80 @@
+{# Orders list page: rendered at admin.orders_list. Extends admin/base.html. #}
+{# Role: lists orders with status filter pills, a data table, and pagination; consumes `orders`, `pagination`, and request.args['status']. #}
+{% extends "admin/base.html" %}
+{% block title %}Orders{% endblock %}
+{% block page_title %}Orders{% endblock %}
+{% block page_title_mobile %}Orders{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <h1 class="font-serif text-2xl text-[#1A1A1A]">Orders</h1>
+
+    <div class="bg-white rounded-2xl border border-border overflow-hidden">
+        {% set status_filter = request.args.get('status', '') %}
+        <div class="px-6 py-4 border-b border-border flex items-center gap-2 overflow-x-auto">
+            <a href="{{ url_for('admin.orders_list') }}" class="px-4 py-2 rounded-full text-sm font-medium {% if not status_filter %}bg-primary text-white{% else %}text-muted hover:text-[#1A1A1A] transition-colors{% endif %}">All</a>
+            {% for status in ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'] %}
+                <a href="{{ url_for('admin.orders_list', status=status) }}" class="px-4 py-2 rounded-full text-sm font-medium {% if status_filter == status %}bg-primary text-white{% else %}text-muted hover:text-[#1A1A1A] transition-colors{% endif %}">{{ status|title }}</a>
+            {% endfor %}
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-section">
+                    <tr>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Order #</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Customer</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Date</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Total</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Status</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Payment</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-custom">
+                    {% if orders %}
+                        {% for order in orders %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium">#{{ order.id }}</td>
+                                <td class="px-6 py-4 text-sm">{{ order.user.name if order.user is not none else '-' }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ order.placed_at.strftime('%b %d, %Y') if order.placed_at else 'N/A' }}</td>
+                                <td class="px-6 py-4 text-sm font-medium">{{ order.total }}</td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium
+                                        {% if order.status == 'pending' %}bg-yellow-100 text-yellow-800
+                                        {% elif order.status == 'paid' %}bg-blue-100 text-blue-800
+                                        {% elif order.status == 'shipped' %}bg-purple-100 text-purple-800
+                                        {% elif order.status == 'delivered' %}bg-green-100 text-green-800
+                                        {% elif order.status in ['cancelled', 'refunded'] %}bg-red-100 text-red-800
+                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ order.status|title }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ order.payment_method or 'N/A' }}</td>
+                                <td class="px-6 py-4">
+                                    <a href="{{ url_for('admin.order_detail', id=order.id) }}" class="text-sm text-primary hover:underline">View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="px-6 py-8 text-center text-muted">No orders found.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if pagination and pagination.pages > 1 %}
+            <div class="px-6 py-4 border-t border-border flex items-center justify-center gap-2">
+                {% if pagination.has_prev %}
+                    <a href="{{ url_for('admin.orders_list', page=pagination.page - 1, status=status_filter) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Previous</a>
+                {% endif %}
+                {% for page_num in range(1, pagination.pages + 1) %}
+                    <a href="{{ url_for('admin.orders_list', page=page_num, status=status_filter) }}" class="px-3 py-1 rounded-lg text-sm {% if page_num == pagination.page %}bg-primary text-white{% else %}border border-border hover:bg-section transition-colors{% endif %}">{{ page_num }}</a>
+                {% endfor %}
+                {% if pagination.has_next %}
+                    <a href="{{ url_for('admin.orders_list', page=pagination.page + 1, status=status_filter) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Next</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

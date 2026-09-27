@@ -1,0 +1,197 @@
+{# category.html - renders the storefront Category listing page (browse/filter step).
+   Extends base.html. Consumes context: category, categories, q, min_price,
+   max_price, sort, products, pagination, csrf_token. Role: category header,
+   filter sidebar (category/price/sort), product grid with pagination. #}
+{% extends "base.html" %}
+{% from "storefront/_currency_macros.html" import currency_price %}
+{# Title block: page title set to category.name (or 'Shop All') #}
+{% block title %}{{ category.name if category else 'Shop All' }}{% endblock %}
+{# Content block: breadcrumb, page header, filter sidebar, results, pagination #}
+{% block content %}
+{# build_url macro: preserves request.args while applying 'overrides'; used for
+   filter/sort/clear/pagination links without losing active query params #}
+{% macro build_url(overrides) %}
+    {% set args = request.args.to_dict() %}
+    {% do args.pop('page', None) %}
+    {% for k, v in overrides.items() %}
+        {% if v is none %}{% do args.pop(k, None) %}{% else %}{% do args.update({k: v}) %}{% endif %}
+    {% endfor %}
+    {% set qs_parts = [] %}
+    {% for k, v in args.items() %}
+        {% if v is not none and v != '' %}{% set _ = qs_parts.append(k ~ '=' ~ v) %}{% endif %}
+    {% endfor %}
+    {% if category %}{{ url_for('storefront.category', slug=category.slug) }}{% else %}{{ url_for('storefront.shop') }}{% endif %}{% if qs_parts %}?{{ qs_parts|join('&') }}{% endif %}
+{% endmacro %}
+
+{# Breadcrumb: links back to storefront.index, current category name or 'Shop All' #}
+<nav class="text-sm text-[#6B6B6B] py-4">
+    <div class="max-w-7xl mx-auto px-4">
+        <a href="{{ url_for('storefront.index') }}" class="hover:text-[#8B1E3F]">Home</a>
+        <span class="mx-2">/</span>
+        <span class="text-[#1A1A1A]">{{ category.name if category else 'Shop All' }}</span>
+    </div>
+</nav>
+
+{# Page header: h1 (category.name or 'Shop All Heirlooms') and optional category.description #}
+<div class="py-6 border-b border-[#E5E2DD]">
+    <div class="max-w-7xl mx-auto px-4">
+        <h1 class="font-serif text-3xl md:text-4xl text-[#1A1A1A]">{{ category.name if category else 'Shop All Heirlooms' }}</h1>
+        {% if category and category.description %}
+        <p class="text-[#6B6B6B] mt-2 max-w-2xl">{{ category.description }}</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8">
+    {# Filter sidebar (sticky): category, price range and sort filters; preserves
+       active filters via hidden inputs across GET form submissions #}
+    <aside class="lg:w-64 shrink-0">
+        <div class="sticky top-24 space-y-6">
+            {# Category filter: 'All Products' link + loops 'categories'; active item highlighted #}
+            <div>
+                <h3 class="text-xs uppercase tracking-wider text-[#1A1A1A] font-semibold mb-3">Category</h3>
+                <div class="flex flex-col gap-1">
+                    <a href="{{ url_for('storefront.shop') }}" class="px-3 py-2 rounded-lg text-sm {% if not category %}bg-[#8B1E3F]/10 text-[#8B1E3F] font-medium{% else %}text-[#6B6B6B] hover:bg-[#FAF9F7]{% endif %}">All Products</a>
+                    {% for cat in categories %}
+                    <a href="{{ url_for('storefront.category', slug=cat.slug) }}" class="px-3 py-2 rounded-lg text-sm {% if category and category.slug == cat.slug %}bg-[#8B1E3F]/10 text-[#8B1E3F] font-medium{% else %}text-[#6B6B6B] hover:bg-[#FAF9F7]{% endif %}">{{ cat.name }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {# Price range filter: GET form with min_price / max_price number inputs #}
+            <div class="border-t border-[#E5E2DD] pt-6">
+                <h3 class="text-xs uppercase tracking-wider text-[#1A1A1A] font-semibold mb-3">Price Range</h3>
+                <form method="GET" class="space-y-2">
+                    {% if category %}{% else %}
+                        {% if request.args.get('category_slug') %}<input type="hidden" name="category_slug" value="{{ request.args.get('category_slug') }}"/>{% endif %}
+                    {% endif %}
+                    {% if q %}<input type="hidden" name="q" value="{{ q }}"/>{% endif %}
+                    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}"/>{% endif %}
+                    <div class="flex items-center gap-2">
+                        <input type="number" name="min_price" value="{{ min_price if min_price is not none else '' }}" placeholder="Min" class="w-full text-sm border border-[#E5E2DD] rounded-lg px-3 py-2 focus:outline-none focus:border-[#8B1E3F]"/>
+                        <span class="text-[#6B6B6B]">&ndash;</span>
+                        <input type="number" name="max_price" value="{{ max_price if max_price is not none else '' }}" placeholder="Max" class="w-full text-sm border border-[#E5E2DD] rounded-lg px-3 py-2 focus:outline-none focus:border-[#8B1E3F]"/>
+                    </div>
+                    <button type="submit" class="w-full text-sm border border-[#E5E2DD] rounded-full py-2 hover:border-[#8B1E3F] hover:text-[#8B1E3F] transition">Apply</button>
+                </form>
+            </div>
+            {# Active filter chip: 'Clear price filter' resets min_price/max_price via build_url #}
+            {% if min_price is not none or max_price is not none %}
+            <a href="{{ build_url({'min_price': none, 'max_price': none}) }}" class="text-sm text-[#8B1E3F] hover:underline">Clear price filter</a>
+            {% endif %}
+        </div>
+    </aside>
+
+    <div class="flex-1 min-w-0">
+        {# Result count: pagination.total (or products|length) 'heirloom(s) found'; sort select (newest/price_low/price_high) #}
+        <div class="flex items-center justify-between gap-4 mb-6 flex-wrap">
+            <p class="text-sm text-[#6B6B6B]">{{ pagination.total if pagination else products|length }} heirloom{{ 's' if not pagination or pagination.total != 1 else '' }} found</p>
+            <form method="GET" class="flex items-center gap-2">
+                {% if category %}{% else %}
+                    {% if request.args.get('category_slug') %}<input type="hidden" name="category_slug" value="{{ request.args.get('category_slug') }}"/>{% endif %}
+                {% endif %}
+                {% if q %}<input type="hidden" name="q" value="{{ q }}"/>{% endif %}
+                {% if min_price is not none %}<input type="hidden" name="min_price" value="{{ min_price }}"/>{% endif %}
+                {% if max_price is not none %}<input type="hidden" name="max_price" value="{{ max_price }}"/>{% endif %}
+                <select name="sort" onchange="this.form.submit()" class="text-sm border border-[#E5E2DD] rounded-lg px-3 py-2 bg-white">
+                    <option value="newest" {% if sort == 'newest' or not sort %}selected{% endif %}>Newest</option>
+                    <option value="price_low" {% if sort == 'price_low' %}selected{% endif %}>Price: Low to High</option>
+                    <option value="price_high" {% if sort == 'price_high' %}selected{% endif %}>Price: High to Low</option>
+                </select>
+            </form>
+        </div>
+
+        {# Product grid: loops 'products' in responsive 2/3-col layout #}
+        {% if products %}
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
+            {% for product in products %}
+            {# Product card: media thumbnail, name, description, price via currency_price, wishlist toggle + add-to-cart forms #}
+            <div class="group">
+                <a href="{{ url_for('storefront.product_detail', slug=product.slug) }}" class="block">
+                    <div class="aspect-[3/4] rounded-2xl overflow-hidden bg-[#FAF9F7] relative border border-[#E5E2DD] group-hover:shadow-warm transition">
+                        {% set first_image = product.media.all()|sort(attribute='display_order')|first %}{% if first_image and first_image.media_type == 'image' %}
+                        <img src="{{ first_image.media_url if first_image else "" }}" alt="{{ product.name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                        {% else %}
+                        <div class="w-full h-full flex items-center justify-center text-[#6B6B6B] text-sm">No Image</div>
+                        {% endif %}
+                        {# Wishlist toggle form: POST to wishlist.toggle_wishlist endpoint with csrf_token, product_id #}
+                        <form action="{{ url_for('wishlist.toggle_wishlist') }}" method="POST" class="absolute top-3 right-3">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <input type="hidden" name="product_id" value="{{ product.id }}"/>
+                            <button type="submit" class="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-sm hover:bg-white transition">
+                                <i data-lucide="heart" class="w-4 h-4"></i>
+                            </button>
+                        </form>
+                    </div>
+                    <div class="p-4 pb-0">
+                        <h3 class="font-medium text-[#1A1A1A] truncate">{{ product.name }}</h3>
+                        <p class="text-sm text-[#6B6B6B] line-clamp-2 mt-1">{{ product.description }}</p>
+                    </div>
+                </a>
+                <div class="px-4">
+                    {{ currency_price(product.base_price, format_currency(product.base_price)) }}
+                </div>
+                {# Add-to-cart form: POST to cart.add_to_cart endpoint with csrf_token, product_variant_id and quantity #}
+                <form action="{{ url_for('cart.add_to_cart') }}" method="POST" class="mt-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="product_variant_id" value="{{ product.variants.first().id if product.variants.first() else '' }}"/>
+                    <input type="hidden" name="quantity" value="1"/>
+                    <button type="submit" class="w-full bg-[#8B1E3F] text-white py-3 rounded-full font-medium hover:bg-[#8B1E3F]/90 transition flex items-center justify-center gap-2">
+                        <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                        Add to Bag
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+
+        {# Pagination: build_url links for prev / page / next via pagination.iter_pages; current page shown as span #}
+        {% if pagination and pagination.pages > 1 %}
+        <div class="flex justify-center gap-2 py-10">
+            {% if pagination.has_prev %}
+            <a href="{{ build_url({'page': pagination.prev_num}) }}" class="w-10 h-10 rounded-full border border-[#E5E2DD] flex items-center justify-center hover:border-[#8B1E3F]">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </a>
+            {% endif %}
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num == pagination.page %}
+                    <span class="w-10 h-10 rounded-full bg-[#8B1E3F] text-white flex items-center justify-center text-sm">{{ page_num }}</span>
+                    {% else %}
+                    <a href="{{ build_url({'page': page_num}) }}" class="w-10 h-10 rounded-full border border-[#E5E2DD] flex items-center justify-center hover:border-[#8B1E3F] text-sm">{{ page_num }}</a>
+                    {% endif %}
+                {% else %}
+                <span class="px-2 text-[#6B6B6B]">...</span>
+                {% endif %}
+            {% endfor %}
+            {% if pagination.has_next %}
+            <a href="{{ build_url({'page': pagination.next_num}) }}" class="w-10 h-10 rounded-full border border-[#E5E2DD] flex items-center justify-center hover:border-[#8B1E3F]">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {# No-results state: shown when 'products' is empty; links to storefront.shop to clear all filters #}
+        {% else %}
+        <div class="text-center py-20">
+            <i data-lucide="package" class="w-16 h-16 text-[#E5E2DD] mx-auto mb-4"></i>
+            <p class="text-[#6B6B6B]">No heirlooms match these filters just yet.</p>
+            <a href="{{ url_for('storefront.shop') }}" class="inline-block mt-4 text-sm text-[#8B1E3F] hover:underline">Clear all filters</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# Consultation CTA: links to storefront.page(slug='contact') for booking a consultation #}
+<div class="bg-[#FAF9F7] border-t border-[#E5E2DD] py-10 mt-6">
+    <div class="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
+        <div>
+            <h3 class="font-serif text-xl text-[#1A1A1A]">Unsure about weave authenticity or custom blouse fit?</h3>
+            <p class="text-sm text-[#6B6B6B] mt-1">Connect directly with our textile curators and bridal couturiers.</p>
+        </div>
+        <a href="{{ url_for('storefront.page', slug='contact') }}" class="shrink-0 inline-flex items-center gap-2 bg-[#8B1E3F] text-white px-6 py-3 rounded-full hover:bg-[#8B1E3F]/90 transition whitespace-nowrap">
+            <i data-lucide="message-circle" class="w-4 h-4"></i>
+            Book a Consultation
+        </a>
+    </div>
+</div>
+{% endblock %}

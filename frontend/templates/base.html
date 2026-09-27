@@ -1,0 +1,309 @@
+{# 
+  Root layout template for all Gold Creation storefront pages.
+  Extends: none (base template)
+  Includes: storefront/_currency_macros.html (via context processor), Lucide icons, Tailwind CDN
+  Role: Provides global shell - header, navigation, footer, flash messages, currency/JS init
+  Context vars consumed: current_currency, all_currencies, cart_count, wishlist_count, settings, csrf_token, current_user, request
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ site_settings.site_title if site_settings.site_title else 'Gold Creation' }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    {# Tailwind CDN + custom theme config: fonts (Plus Jakarta Sans / Playfair Display), brand colors (primary #8B1E3F, secondary #C9A227), shadows #}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        primary: '#8B1E3F',
+                        secondary: '#C9A227',
+                        muted: '#6B6B6B',
+                        border: '#E5E2DD',
+                        section: '#FAF9F7',
+                    },
+                    boxShadow: {
+                        warm: '0 8px 24px -4px rgba(139, 30, 63, 0.08), 0 2px 6px -1px rgba(26, 26, 26, 0.05)',
+                    }
+                }
+            }
+        }
+    </script>
+    {# Page-specific CSS injection point #}
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-white text-[#1A1A1A] font-sans antialiased">
+    {# Initialize site_settings from context processor (app/__init__.py injects `settings`) #}
+    {% set site_settings = {} %}
+    {% if settings is defined %}
+        {% set site_settings = settings %}
+    {% endif %}
+
+    {# Header: announcement bar (currency switcher POSTs to cart.set_currency via JS), logo, desktop nav, search, wishlist/cart/account icons #}
+    <header class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-[#E5E2DD]">
+        <div class="bg-[#8B1E3F] text-white">
+            <div class="max-w-7xl mx-auto px-4 h-9 flex items-center justify-between gap-4 text-xs">
+                {# Announcement bar text from site_settings or default #}
+                <span class="hidden sm:block tracking-wide truncate">{{ site_settings.announcement_bar if site_settings.announcement_bar else 'Complimentary shipping across India & worldwide diaspora delivery' }}</span>
+                {# Currency select - JS on main.js listens for change and POSTs to {{ url_for('cart.set_currency') }} #}
+                <select aria-label="Change currency" class="gc-currency-select ml-auto bg-transparent border-none text-white text-xs uppercase tracking-wider focus:outline-none cursor-pointer">
+                    {% for c in all_currencies %}
+                    <option class="text-[#1A1A1A]" value="{{ c.code }}" {% if current_currency == c.code %}selected{% endif %}>{{ c.code }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 shrink-0">
+                {# Mobile menu toggle button #}
+                <button id="mobile-menu-btn" class="lg:hidden w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#FAF9F7] transition">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                {# Logo/link to home (storefront.index) #}
+                {% if site_settings.logo_url %}
+                    <a href="{{ url_for('storefront.index') }}" class="shrink-0">
+                        <img src="{{ site_settings.logo_url }}" alt="{{ site_settings.site_title if site_settings.site_title else 'Gold Creation' }}" class="h-12 w-auto">
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('storefront.index') }}" class="flex flex-col leading-none">
+                        <span class="font-serif text-2xl text-[#8B1E3F] tracking-tight">{{ site_settings.site_title if site_settings.site_title else 'Gold Creation' }}</span>
+                        <span class="text-[10px] text-[#C9A227] tracking-[0.25em] uppercase mt-0.5">Haute Ethnic &amp; Lifestyle</span>
+                    </a>
+                {% endif %}
+            </div>
+            {# Desktop navigation: dynamic from admin NavigationMenu #}
+            <nav class="hidden lg:flex items-center gap-6 mx-auto">
+                {% for item in nav_items %}
+                    <a href="{{ resolve_nav_url(item.target_url_or_page_slug) }}" class="text-sm font-medium text-[#1A1A1A] hover:text-[#8B1E3F] transition py-1 {% if request.endpoint == 'storefront.index' and item.target_url_or_page_slug == '/' %}border-b-2 border-[#8B1E3F]{% endif %}">{{ item.label }}</a>
+                {% endfor %}
+            </nav>
+            {# Search form (GET storefront.search), wishlist/cart/account icons with badges using wishlist_count/cart_count #}
+            <div class="flex items-center gap-1 shrink-0">
+                <form action="{{ url_for('storefront.search') }}" method="GET" class="hidden md:flex items-center">
+                    <input type="text" name="q" placeholder="Search sarees, suits..." class="w-40 lg:w-56 text-sm border border-[#E5E2DD] rounded-full px-4 py-2 bg-[#FAF9F7] focus:outline-none focus:border-[#8B1E3F] transition"/>
+                </form>
+                <a href="{{ url_for('storefront.search') }}" class="md:hidden w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#FAF9F7] transition">
+                    <i data-lucide="search" class="w-5 h-5"></i>
+                </a>
+                <a href="{{ url_for('wishlist.view_wishlist') }}" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#FAF9F7] transition relative">
+                    <i data-lucide="heart" class="w-5 h-5"></i>
+                    {% if wishlist_count is defined and wishlist_count > 0 %}
+                    <span class="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#C9A227] text-white text-[10px] rounded-full flex items-center justify-center">{{ wishlist_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('cart.view_cart') }}" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#FAF9F7] transition relative">
+                    <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+                    {% if cart_count is defined and cart_count > 0 %}
+                    <span class="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#8B1E3F] text-white text-[10px] rounded-full flex items-center justify-center">{{ cart_count }}</span>
+                    {% endif %}
+                </a>
+                {% if current_user.is_authenticated %}
+                {# Signed-in account menu. CSS-only disclosure via <details>/<summary>
+                   so it needs no behaviour code beyond the aria-expanded sync below.
+                   The panel is absolutely positioned; no header ancestor uses
+                   overflow-hidden, so it is never clipped. #}
+                <details id="account-menu" class="relative group">
+                    <summary aria-haspopup="true" aria-expanded="false" aria-controls="account-menu-panel" class="flex items-center h-10 pl-1 pr-2 rounded-full hover:bg-[#FAF9F7] transition cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                        <span class="w-10 h-10 flex items-center justify-center">
+                            <i data-lucide="user" class="w-5 h-5"></i>
+                        </span>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-[#6B6B6B] transition-transform group-open:rotate-180"></i>
+                    </summary>
+                    <div id="account-menu-panel" class="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-white border border-[#E5E2DD] rounded-2xl shadow-warm p-2 z-50">
+                        <div class="px-3 py-2 border-b border-[#E5E2DD]">
+                            <p class="text-sm font-medium truncate">{{ current_user.name if current_user.name else current_user.email }}</p>
+                            <p class="text-xs text-[#6B6B6B] truncate">{{ current_user.email }}</p>
+                        </div>
+                        <nav class="py-1 space-y-0.5">
+                            <a href="{{ url_for('storefront.account') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#FAF9F7] transition text-sm">
+                                <i data-lucide="user" class="w-4 h-4 text-[#6B6B6B]"></i>
+                                Account Dashboard
+                            </a>
+                            <a href="{{ url_for('storefront.account_orders') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#FAF9F7] transition text-sm">
+                                <i data-lucide="package" class="w-4 h-4 text-[#6B6B6B]"></i>
+                                My Orders
+                            </a>
+                            <a href="{{ url_for('storefront.account_addresses') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#FAF9F7] transition text-sm">
+                                <i data-lucide="map-pin" class="w-4 h-4 text-[#6B6B6B]"></i>
+                                Addresses
+                            </a>
+                            {# Logout is a CSRF-protected POST, never a link, so it
+                               stays a form - styled to match the account page. #}
+                            <form method="POST" action="{{ url_for('auth.logout') }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[#FAF9F7] transition text-sm text-left text-red-600">
+                                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                                    Logout
+                                </button>
+                            </form>
+                        </nav>
+                    </div>
+                </details>
+                {% else %}
+                <a href="{{ url_for('auth.login') }}" class="flex items-center h-10 pl-1 pr-2 rounded-full hover:bg-[#FAF9F7] transition" aria-label="Login">
+                    <span class="w-10 h-10 flex items-center justify-center">
+                        <i data-lucide="user" class="w-5 h-5"></i>
+                    </span>
+                    <span class="hidden md:inline text-sm font-medium whitespace-nowrap">Login</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+
+    {# Keeps the <details> account menu accessible: mirrors its open state onto
+       aria-expanded and closes on Escape. Nothing is added to main.js. #}
+    <script>
+        (function () {
+            var menu = document.getElementById('account-menu');
+            if (!menu) { return; }
+            var trigger = menu.querySelector('summary');
+            menu.addEventListener('toggle', function () {
+                trigger.setAttribute('aria-expanded', menu.open ? 'true' : 'false');
+            });
+            menu.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && menu.open) {
+                    menu.open = false;
+                    trigger.focus();
+                }
+            });
+        })();
+    </script>
+    <div id="mobile-nav" class="hidden fixed top-[116px] left-0 right-0 bg-white border-b border-[#E5E2DD] z-40 lg:hidden">
+        <nav class="flex justify-around py-2 overflow-x-auto">
+            <a href="{{ url_for('storefront.index') }}" class="flex flex-col items-center gap-1 p-2 text-xs text-[#6B6B6B]">
+                <i data-lucide="home" class="w-5 h-5"></i>
+                Home
+            </a>
+            <a href="{{ url_for('storefront.shop') }}" class="flex flex-col items-center gap-1 p-2 text-xs text-[#6B6B6B]">
+                <i data-lucide="grid" class="w-5 h-5"></i>
+                Shop
+            </a>
+            <a href="{{ url_for('wishlist.view_wishlist') }}" class="flex flex-col items-center gap-1 p-2 text-xs text-[#6B6B6B]">
+                <i data-lucide="heart" class="w-5 h-5"></i>
+                Wishlist
+            </a>
+            <a href="{{ url_for('cart.view_cart') }}" class="flex flex-col items-center gap-1 p-2 text-xs text-[#6B6B6B]">
+                <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+                Cart
+            </a>
+            <a href="{{ url_for('auth.login') if not current_user.is_authenticated else url_for('storefront.account_orders') }}" class="flex flex-col items-center gap-1 p-2 text-xs text-[#6B6B6B]">
+                <i data-lucide="user" class="w-5 h-5"></i>
+                Account
+            </a>
+            {% if current_user.is_authenticated %}
+            {# Same CSRF-protected POST logout as the desktop menu. shrink-0 plus the
+               scrollable tab bar keeps all six tabs legible on narrow phones. #}
+            <form method="POST" action="{{ url_for('auth.logout') }}" class="shrink-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="flex flex-col items-center gap-1 p-2 text-xs text-red-600 hover:text-red-700 transition shrink-0 whitespace-nowrap">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                    Logout
+                </button>
+            </form>
+            {% endif %}
+        </nav>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="fixed top-4 right-4 z-50 max-w-sm space-y-2">
+                {% for category, message in messages %}
+                <div class="flash-message p-4 rounded-xl shadow-sm text-white text-sm {% if category == 'success' %}bg-[#3FA34D]{% elif category == 'danger' %}bg-[#D64545]{% elif category == 'warning' %}bg-[#C9A227]{% else %}bg-[#1A1A1A]{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="pb-20 md:pb-0">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-[#FAF9F7] py-12 mt-12 border-t border-[#E5E2DD]">
+        <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+                <h3 class="font-serif text-xl mb-4 text-[#8B1E3F]">Gold Creation</h3>
+                <p class="text-sm text-[#6B6B6B]">{{ site_settings.footer_text if site_settings.footer_text else 'Preserving centuries of imperial handloom traditions across Varanasi, Kanchipuram, and Awadh. Gold Creation crafts heirloom weaves, bridal couture suites, and bespoke home linens for the modern global tastemaker.' }}</p>
+                <div class="flex gap-3 mt-5">
+                    {% if social_links %}
+                        {% for link in social_links %}
+                            <a href="{{ link.url }}" aria-label="{{ link.platform|capitalize }}" class="w-9 h-9 rounded-full border border-[#E5E2DD] flex items-center justify-center hover:border-[#8B1E3F] hover:text-[#8B1E3F] transition">
+                                {% if link.platform == 'instagram' %}
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c2.717 0 3.056.01 4.122.06 1.065.05 1.79.217 2.428.465.66.256 1.216.6 1.772 1.153a4.908 4.908 0 0 1 1.153 1.772c.247.637.415 1.363.465 2.428.048 1.066.06 1.405.06 4.122 0 2.717-.01 3.056-.06 4.122-.05 1.065-.218 1.79-.465 2.428a4.883 4.883 0 0 1-1.153 1.772 4.915 4.915 0 0 1-1.772 1.153c-.637.247-1.363.415-2.428.465-1.066.048-1.405.06-4.122.06-2.717 0-3.056-.01-4.122-.06-1.065-.05-1.79-.218-2.428-.465a4.89 4.89 0 0 1-1.772-1.153 4.904 4.904 0 0 1-1.153-1.772c-.248-.637-.415-1.363-.465-2.428C2.013 15.056 2 14.717 2 12c0-2.717.01-3.056.06-4.122.05-1.066.217-1.79.465-2.428a4.88 4.88 0 0 1 1.153-1.772A4.897 4.897 0 0 1 5.45 2.525c.638-.248 1.362-.415 2.428-.465C8.944 2.012 9.283 2 12 2zm0 1.802c-2.67 0-2.986.01-4.04.059-.976.045-1.505.207-1.858.344-.466.181-.8.398-1.15.748-.35.35-.566.683-.747 1.15-.137.352-.3.881-.344 1.857-.05 1.054-.06 1.37-.06 4.04 0 2.67.01 2.986.06 4.04.045.976.207 1.505.344 1.858.181.466.398.8.748 1.15.35.35.683.566 1.15.747.352.137.881.3 1.857.344 1.054.05 1.37.06 4.04.06 2.67 0 2.987-.01 4.04-.06.976-.045 1.505-.207 1.858-.344.466-.181.8-.398 1.15-.748.35-.35.566-.683.747-1.15.137-.352.3-.881.344-1.857.05-1.054.06-1.37.06-4.04 0-2.67-.01-2.986-.06-4.04-.045-.976-.207-1.505-.344-1.858a3.09 3.09 0 0 0-.748-1.15 3.098 3.098 0 0 0-1.15-.747c-.352-.137-.881-.3-1.857-.344-1.054-.05-1.37-.06-4.04-.06zm0 4.595a5.603 5.603 0 1 1 0 11.206 5.603 5.603 0 0 1 0-11.206zm0 1.802a3.801 3.801 0 1 0 0 7.602 3.801 3.801 0 0 0 0-7.602zm5.728-1.973a1.31 1.31 0 1 1-2.618 0 1.31 1.31 0 0 1 2.618 0z"/></svg>
+                                {% elif link.platform == 'facebook' %}
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22 12.06C22 6.505 17.523 2 12 2S2 6.505 2 12.06c0 5.02 3.657 9.184 8.438 9.94v-7.03H7.898v-2.91h2.54V9.845c0-2.507 1.492-3.89 3.777-3.89 1.094 0 2.238.196 2.238.196v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562v1.877h2.773l-.443 2.91h-2.33V22c4.78-.756 8.437-4.92 8.437-9.94z"/></svg>
+                                {% elif link.platform == 'youtube' %}
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                                {% elif link.platform == 'twitter' or link.platform == 'x' %}
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                {% else %}
+                                    <i data-lucide="globe" class="w-4 h-4"></i>
+                                {% endif %}
+                            </a>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <h4 class="font-medium mb-4 text-sm uppercase tracking-wider text-[#1A1A1A]">Curated Weaves</h4>
+                <ul class="space-y-2 text-sm text-[#6B6B6B]">
+                    {% for cat in footer_categories %}
+                        <li><a href="{{ url_for('storefront.shop', category_slug=cat.slug) }}" class="hover:text-[#8B1E3F]">{{ cat.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-medium mb-4 text-sm uppercase tracking-wider text-[#1A1A1A]">Client Services</h4>
+                <ul class="space-y-2 text-sm text-[#6B6B6B]">
+                    <li><a href="{{ url_for('storefront.page', slug='shipping') }}" class="hover:text-[#8B1E3F]">Worldwide Shipping</a></li>
+                    <li><a href="{{ url_for('storefront.page', slug='returns') }}" class="hover:text-[#8B1E3F]">Returns &amp; Exchange Policy</a></li>
+                    <li><a href="{{ url_for('storefront.page', slug='faq') }}" class="hover:text-[#8B1E3F]">FAQ</a></li>
+                    <li><a href="{{ url_for('storefront.page', slug='contact') }}" class="hover:text-[#8B1E3F]">Contact &amp; Bespoke Appointments</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-medium mb-4 text-sm uppercase tracking-wider text-[#1A1A1A]">Join the Gold Circle</h4>
+                <p class="text-sm text-[#6B6B6B] mb-3">Receive private previews of master-weaver consignments, invitations to bridal trunk shows, and seasonal privileges.</p>
+                <form action="{{ url_for('storefront.newsletter_subscribe') }}" method="POST" class="flex gap-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="next" value="{{ request.path }}"/>
+                    <input type="email" name="email" required placeholder="Enter your email" class="min-w-0 flex-1 text-sm border border-[#E5E2DD] rounded-full px-4 py-2 bg-white focus:outline-none focus:border-[#8B1E3F] transition"/>
+                    <button type="submit" class="shrink-0 bg-[#8B1E3F] text-white text-sm px-5 py-2 rounded-full hover:bg-[#8B1E3F]/90 transition">Subscribe</button>
+                </form>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 mt-12 pt-8 border-t border-[#E5E2DD] text-center text-sm text-[#6B6B6B]">
+            &copy; {{ now().year }} Gold Creation Atelier LLP. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        window.GC_CURRENT_CURRENCY = {{ current_currency|tojson }};
+        window.GC_CURRENCY_RATES = {
+            {% for c in all_currencies %}"{{ c.code }}": {"symbol": {{ c.symbol|tojson }}, "rate_to_inr": {{ c.exchange_rate_to_inr }}}{% if not loop.last %},{% endif %}
+            {% endfor %}
+        };
+        window.GC_SET_CURRENCY_URL = {{ url_for('cart.set_currency')|tojson }};
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
+
+

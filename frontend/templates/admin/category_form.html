@@ -1,0 +1,363 @@
+﻿{# Category create/edit form: rendered at admin.category_new (create) and admin.category_edit (edit). Extends admin/base.html. #}
+{# Role: captures category fields (name, slug, parent, description, image, flags, display order). Consumes `category` (None on create) and `root_categories`. #}
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit Category' if category else 'Add Category' }}{% endblock %}
+{% block page_title %}{{ 'Edit Category' if category else 'Add Category' }}{% endblock %}
+{% block page_title_mobile %}{{ 'Edit Category' if category else 'Add Category' }}{% endblock %}
+{% block content %}
+{# Category form page: page header and a single POST form. #}
+<div class="space-y-6">
+    {# Page header: dynamic title (Add/Edit) and a Back link to admin.categories_list. #}
+    <div class="flex items-center justify-between">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">{{ 'Edit Category' if category else 'Add Category' }}</h1>
+        <a href="{{ url_for('admin.categories_list') }}" class="text-sm text-muted hover:text-primary transition-colors">&larr; Back to Categories</a>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" class="bg-white rounded-2xl border border-border p-8 max-w-2xl">
+        {{ csrf_input() }}
+        <div class="space-y-6">
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Name</label>
+                <input type="text" name="name" value="{{ category.name if category else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Slug</label>
+                <input type="text" name="slug" value="{{ category.slug if category else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Parent Category</label>
+                <select name="parent_id" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option value="">-- None --</option>
+                    <optgroup label="Root Categories">
+                        {% for cat in root_categories %}
+                            <option value="{{ cat.id }}" {% if category and category.parent_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Description</label>
+                <textarea name="description" rows="4" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">{{ category.description if category else '' }}</textarea>
+            </div>
+            {% if category %}
+            <div>
+                <h3 class="block text-sm font-medium text-muted mb-2">Media</h3>
+                <div class="flex items-center gap-2 mb-4">
+                    <button type="button" id="btn-add-images" class="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">
+                        <i data-lucide="image" class="w-4 h-4"></i>
+                        Add Images
+                    </button>
+                    <button type="button" id="btn-add-videos" class="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">
+                        <i data-lucide="video" class="w-4 h-4"></i>
+                        Add Videos
+                    </button>
+                </div>
+                <div class="border-2 border-dashed border-border rounded-2xl p-8 text-center mb-6 relative" id="media-drop-zone">
+                    <i data-lucide="upload-cloud" class="w-12 h-12 text-muted mx-auto mb-4"></i>
+                    <p class="text-sm text-muted mb-2">Drag and drop files here, or click to browse</p>
+                    <input type="hidden" name="media_type" value="image">
+                    <input type="file" id="media-file-input" name="file" multiple accept="image/*,video/*" class="hidden">
+                    <button type="button" id="btn-browse" class="mt-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">Browse Files</button>
+                    <div id="upload-progress-overlay" class="absolute inset-0 bg-white/95 rounded-2xl flex flex-col items-center justify-center hidden">
+                        <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        <p class="mt-4 text-sm text-muted" id="upload-progress-label">Uploading...</p>
+                        <div class="w-48 h-2 bg-border rounded-full mt-3 overflow-hidden">
+                            <div id="upload-progress-bar" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <span id="upload-progress-text" class="text-xs text-muted mt-1">0%</span>
+                    </div>
+                </div>
+                <script>
+                    (function() {
+                        const categoryId = {{ category.id }};
+                        const csrfToken = '{{ csrf_token() }}';
+                        const fileInput = document.getElementById('media-file-input');
+                        const mediaTypeInput = document.querySelector('input[name="media_type"]');
+
+                        document.getElementById('btn-add-images').addEventListener('click', function() {
+                            mediaTypeInput.value = 'image';
+                            fileInput.click();
+                        });
+                        document.getElementById('btn-add-videos').addEventListener('click', function() {
+                            mediaTypeInput.value = 'video';
+                            fileInput.click();
+                        });
+                        document.getElementById('btn-browse').addEventListener('click', function() {
+                            fileInput.click();
+                        });
+
+                        fileInput.addEventListener('change', function() {
+                            if (!fileInput.files.length) return;
+                            const formData = new FormData();
+                            for (let i = 0; i < fileInput.files.length; i++) {
+                                formData.append('file', fileInput.files[i]);
+                            }
+                            formData.append('media_type', mediaTypeInput.value);
+                            formData.append('csrf_token', csrfToken);
+
+                            const overlay = document.getElementById('upload-progress-overlay');
+                            const progressBar = document.getElementById('upload-progress-bar');
+                            const progressText = document.getElementById('upload-progress-text');
+                            const progressLabel = document.getElementById('upload-progress-label');
+                            overlay.classList.remove('hidden');
+                            progressBar.style.width = '0%';
+                            progressText.textContent = '0%';
+                            progressLabel.textContent = 'Uploading...';
+
+                            const xhr = new XMLHttpRequest();
+                            xhr.upload.addEventListener('progress', function(e) {
+                                if (e.lengthComputable) {
+                                    const percent = Math.round((e.loaded / e.total) * 100);
+                                    progressBar.style.width = percent + '%';
+                                    progressText.textContent = percent + '%';
+                                }
+                            });
+                            xhr.open('POST', '/admin/categories/' + categoryId + '/media');
+                            xhr.onload = function() {
+                                overlay.classList.add('hidden');
+                                if (xhr.status === 200) {
+                                    progressLabel.textContent = 'Upload complete!';
+                                    setTimeout(() => location.reload(), 500);
+                                } else {
+                                    alert('Upload failed: ' + (xhr.responseText || 'Please try again.'));
+                                    fileInput.value = '';
+                                }
+                            };
+                            xhr.onerror = function() {
+                                overlay.classList.add('hidden');
+                                alert('Upload failed. Please check your connection and try again.');
+                                fileInput.value = '';
+                            };
+                            xhr.send(formData);
+                        });
+
+                        function deleteMedia(mediaId) {
+                            fetch('/admin/categories/' + categoryId + '/media/' + mediaId + '/delete', {
+                                method: 'POST',
+                                headers: {'X-CSRFToken': csrfToken}
+                            }).then(() => location.reload());
+                        }
+
+                        function setPrimary(mediaId) {
+                            fetch('/admin/categories/' + categoryId + '/media/' + mediaId + '/primary', {
+                                method: 'POST',
+                                headers: {'X-CSRFToken': csrfToken}
+                            }).then(() => location.reload());
+                        }
+
+                        let draggedItem = null;
+
+                        function reorderMedia() {
+                            const ids = Array.from(document.querySelectorAll('.media-card')).map(el => el.dataset.mediaId);
+                            const formData = new FormData();
+                            formData.append('order', ids.join(','));
+                            formData.append('csrf_token', csrfToken);
+                            fetch('/admin/categories/' + categoryId + '/media/reorder', {
+                                method: 'POST',
+                                body: formData
+                            }).then(() => {});
+                        }
+
+                        document.querySelectorAll('.media-card').forEach(card => {
+                            card.setAttribute('draggable', 'true');
+                            card.addEventListener('dragstart', function(e) {
+                                draggedItem = this;
+                                this.style.opacity = '0.4';
+                            });
+                            card.addEventListener('dragend', function() {
+                                this.style.opacity = '1';
+                                draggedItem = null;
+                            });
+                            card.addEventListener('dragover', function(e) {
+                                e.preventDefault();
+                                if (draggedItem && draggedItem !== this) {
+                                    const rect = this.getBoundingClientRect();
+                                    const mid = rect.top + rect.height / 2;
+                                    if (e.clientY < mid) {
+                                        this.parentNode.insertBefore(draggedItem, this);
+                                    } else {
+                                        this.parentNode.insertBefore(draggedItem, this.nextSibling);
+                                    }
+                                }
+                            });
+                            card.addEventListener('drop', function() {
+                                reorderMedia();
+                            });
+                        });
+
+                        document.querySelectorAll('.media-card .btn-delete').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const mediaId = this.dataset.mediaId;
+                                if (confirm('Delete this media?')) deleteMedia(mediaId);
+                            });
+                        });
+                        document.querySelectorAll('.media-card .btn-primary').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const mediaId = this.dataset.mediaId;
+                                setPrimary(mediaId);
+                            });
+                        });
+                    })();
+                </script>
+                {% if category.media %}
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {% for media in category.media %}
+                            <div class="media-card border border-border rounded-xl overflow-hidden">
+                                <div class="aspect-square bg-section flex items-center justify-center relative">
+                                    {% if media.media_type == 'image' %}
+                                        <img src="{{ url_for('media.serve_category_media', category_id=category.id, media_id=media.id) }}" alt="" class="w-full h-full object-cover">
+                                    {% elif media.media_type == 'video' %}
+                                        <video src="{{ url_for('media.serve_category_media', category_id=category.id, media_id=media.id) }}" poster="{{ media.thumbnail_url or '' }}" class="w-full h-full object-cover"></video>
+                                        <div class="absolute inset-0 flex items-center justify-center">
+                                            <div class="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
+                                                <i data-lucide="play" class="w-5 h-5 text-white"></i>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="p-3">
+                                    <span class="text-xs uppercase tracking-wider text-muted">{{ media.media_type }}</span>
+                                    {% if media.is_primary %}
+                                        <span class="ml-2 text-xs bg-secondary text-white px-2 py-0.5 rounded-full">Primary</span>
+                                    {% endif %}
+                                    <div class="flex items-center gap-2 mt-2">
+                                        {% if not media.is_primary %}
+                                            <button type="button" class="btn-primary text-xs bg-section px-2 py-1 rounded hover:bg-gray-200 transition-colors" data-media-id="{{ media.id }}">Set Primary</button>
+                                        {% endif %}
+                                        <button type="button" class="btn-delete text-xs text-[#D64545] hover:underline ml-auto" data-media-id="{{ media.id }}">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="media_order" value="{{ category.media|map(attribute='id')|join(',') }}">
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if category %}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Category Image</label>
+                <div class="border-2 border-dashed border-border rounded-2xl p-8 text-center relative" id="category-image-drop-zone">
+                    <div id="category-image-preview" class="mb-4 {% if not category.image_url %}hidden{% endif %}">
+                        <img src="{{ category.image_url }}" alt="Category Image" class="max-h-48 mx-auto rounded-xl object-cover">
+                    </div>
+                    <div id="category-image-upload-prompt">
+                        <i data-lucide="upload-cloud" class="w-12 h-12 text-muted mx-auto mb-4"></i>
+                        <p class="text-sm text-muted mb-2">Drag and drop files here, or click to browse</p>
+                        <input type="file" id="category-image-input" name="file" accept="image/*" class="hidden">
+                        <button type="button" id="btn-browse-category-image" class="mt-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">Browse Files</button>
+                    </div>
+                    <div id="category-image-upload-overlay" class="absolute inset-0 bg-white/95 rounded-2xl flex flex-col items-center justify-center hidden">
+                        <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        <p class="mt-4 text-sm text-muted" id="category-image-upload-label">Uploading...</p>
+                        <div class="w-48 h-2 bg-border rounded-full mt-3 overflow-hidden">
+                            <div id="category-image-upload-bar" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <span id="category-image-upload-text" class="text-xs text-muted mt-1">0%</span>
+                    </div>
+                </div>
+                <p id="category-image-success" class="text-sm text-green-600 mt-2 hidden">Image uploaded successfully!</p>
+            </div>
+            <script>
+                (function() {
+                    const categoryId = {{ category.id }};
+                    const csrfToken = '{{ csrf_token() }}';
+                    const fileInput = document.getElementById('category-image-input');
+                    const preview = document.getElementById('category-image-preview');
+                    const imageUrlInput = document.querySelector('input[name="image_url"]');
+                    const successMsg = document.getElementById('category-image-success');
+
+                    document.getElementById('btn-browse-category-image').addEventListener('click', function() {
+                        fileInput.click();
+                    });
+
+                    fileInput.addEventListener('change', function() {
+                        if (!fileInput.files.length) return;
+                        const formData = new FormData();
+                        formData.append('file', fileInput.files[0]);
+                        formData.append('csrf_token', csrfToken);
+
+                        const overlay = document.getElementById('category-image-upload-overlay');
+                        const progressBar = document.getElementById('category-image-upload-bar');
+                        const progressText = document.getElementById('category-image-upload-text');
+                        const progressLabel = document.getElementById('category-image-upload-label');
+                        overlay.classList.remove('hidden');
+                        progressBar.style.width = '0%';
+                        progressText.textContent = '0%';
+                        progressLabel.textContent = 'Uploading...';
+
+                        const xhr = new XMLHttpRequest();
+                        xhr.upload.addEventListener('progress', function(e) {
+                            if (e.lengthComputable) {
+                                const percent = Math.round((e.loaded / e.total) * 100);
+                                progressBar.style.width = percent + '%';
+                                progressText.textContent = percent + '%';
+                            }
+                        });
+                        xhr.open('POST', '/admin/categories/' + categoryId + '/image');
+                        xhr.onload = function() {
+                            overlay.classList.add('hidden');
+                            if (xhr.status === 200) {
+                                progressLabel.textContent = 'Upload complete!';
+                                try {
+                                    const response = JSON.parse(xhr.responseText);
+                                    const imageUrl = response.url || response.image_url || '';
+                                    if (imageUrl) {
+                                        preview.innerHTML = '<img src="' + imageUrl + '" alt="Category Image" class="max-h-48 mx-auto rounded-xl object-cover">';
+                                        preview.classList.remove('hidden');
+                                        imageUrlInput.value = imageUrl;
+                                        successMsg.classList.remove('hidden');
+                                        setTimeout(function() { successMsg.classList.add('hidden'); }, 3000);
+                                    }
+                                } catch (e) {
+                                    const imageUrl = xhr.responseText.trim();
+                                    if (imageUrl) {
+                                        preview.innerHTML = '<img src="' + imageUrl + '" alt="Category Image" class="max-h-48 mx-auto rounded-xl object-cover">';
+                                        preview.classList.remove('hidden');
+                                        imageUrlInput.value = imageUrl;
+                                        successMsg.classList.remove('hidden');
+                                        setTimeout(function() { successMsg.classList.add('hidden'); }, 3000);
+                                    }
+                                }
+                                fileInput.value = '';
+                            } else {
+                                alert('Upload failed: ' + (xhr.responseText || 'Please try again.'));
+                                fileInput.value = '';
+                            }
+                        };
+                        xhr.onerror = function() {
+                            overlay.classList.add('hidden');
+                            alert('Upload failed. Please check your connection and try again.');
+                            fileInput.value = '';
+                        };
+                        xhr.send(formData);
+                    });
+                })();
+            </script>
+            {% endif %}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Image URL (optional fallback)</label>
+                <input type="url" name="image_url" value="{{ category.image_url if category else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="flex items-center">
+                    <input type="checkbox" name="is_festival_collection" id="is_festival_collection" {% if category and category.is_festival_collection %}checked{% endif %} class="w-4 h-4 text-primary border-border rounded focus:ring-primary">
+                    <label for="is_festival_collection" class="ml-2 text-sm text-[#1A1A1A]">Festival Collection</label>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">Display Order</label>
+                    <input type="number" name="display_order" value="{{ category.display_order if category else 0 }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" name="is_active" id="is_active" {% if not category or category.is_active %}checked{% endif %} class="w-4 h-4 text-primary border-border rounded focus:ring-primary">
+                    <label for="is_active" class="ml-2 text-sm text-[#1A1A1A]">Active</label>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4 mt-8">
+            <button type="submit" class="bg-primary text-white px-6 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors">Save Category</button>
+            <a href="{{ url_for('admin.categories_list') }}" class="border border-border px-6 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

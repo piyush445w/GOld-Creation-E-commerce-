@@ -1,0 +1,98 @@
+{# Products list page: rendered at admin.products_list. Extends admin/base.html. #}
+{# Role: lists all products with image/name/category/price/SKU/stock/status; consumes `products` and `pagination`. #}
+{% extends "admin/base.html" %}
+{% block title %}Products{% endblock %}
+{% block page_title %}Products{% endblock %}
+{% block page_title_mobile %}Products{% endblock %}
+{% block content %}
+{# Products page: header with "Add Product" link, search box, data table, and pagination. #}
+<div class="space-y-6">
+    {# Page header: title plus "Add Product" button linking to admin.product_new. #}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">Products</h1>
+        <a href="{{ url_for('admin.product_new') }}" class="inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Add Product
+        </a>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-border overflow-hidden">
+        {# Search/filter bar: client-side text input for filtering the products list. #}
+        <div class="px-6 py-4 border-b border-border">
+            <input type="text" name="search" placeholder="Search products..." class="w-full md:w-96 px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+        </div>
+        {# Data table: one row per product with image, name, category, price, SKU, stock (summed from variants), active badge, and Edit/Delete actions. #}
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-section">
+                    <tr>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Image</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Name</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Category</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Price</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">SKU</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Stock</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Status</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-custom">
+                    {% if products %}
+                        {% for product in products %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4">
+                                    {% if product.primary_image %}
+                                        <img src="{{ product.primary_image }}" alt="{{ product.name }}" class="w-12 h-12 rounded-lg object-cover bg-section">
+                                    {% else %}
+                                        <div class="w-12 h-12 rounded-lg bg-section flex items-center justify-center">
+                                            <i data-lucide="image" class="w-6 h-6 text-muted"></i>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 text-sm font-medium">{{ product.name }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ product.category.name if product.category else '-' }}</td>
+                                <td class="px-6 py-4 text-sm">{{ product.base_price }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ product.sku or '-' }}</td>
+                                <td class="px-6 py-4 text-sm">{{ product.variants|sum(attribute='stock_quantity') }}</td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium {% if product.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                        {{ 'Active' if product.is_active else 'Inactive' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-3">
+                                        <a href="{{ url_for('admin.product_edit', id=product.id) }}" class="text-sm text-primary hover:underline">Edit</a>
+                                        <form method="POST" action="{{ url_for('admin.product_delete', id=product.id) }}" class="inline" onsubmit="return confirm('Are you sure you want to delete this product?');">
+                                            {{ csrf_input() }}
+                                            <button type="submit" class="text-sm text-[#D64545] hover:underline">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="px-6 py-8 text-center text-muted">No products yet. <a href="{{ url_for('admin.product_new') }}" class="text-primary hover:underline">Add your first product</a>.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+            {# Pagination: rendered only when pagination.pages > 1; links call admin.products_list with the page number. #}
+            {% if pagination and pagination.pages > 1 %}
+                <div class="px-6 py-4 border-t border-border flex items-center justify-center gap-2">
+                {% if pagination.has_prev %}
+                    <a href="{{ url_for('admin.products_list', page=pagination.page - 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Previous</a>
+                {% endif %}
+                {% for page_num in range(1, pagination.pages + 1) %}
+                    <a href="{{ url_for('admin.products_list', page=page_num) }}" class="px-3 py-1 rounded-lg text-sm {% if page_num == pagination.page %}bg-primary text-white{% else %}border border-border hover:bg-section transition-colors{% endif %}">{{ page_num }}</a>
+                {% endfor %}
+                {% if pagination.has_next %}
+                    <a href="{{ url_for('admin.products_list', page=pagination.page + 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Next</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

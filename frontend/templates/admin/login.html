@@ -1,0 +1,57 @@
+{# Admin login page: standalone HTML rendered by auth.admin_login. Does NOT extend base.html (no admin nav needed). #}
+
+{# Role: authenticates admins; form POSTs credentials to auth.admin_login and consumes csrf_token(). #}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8B1E3F',
+                        secondary: '#C9A227',
+                        muted: '#6B6B6B',
+                        border: '#E5E2DD',
+                        section: '#FAF9F7',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                    },
+                },
+            },
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-section min-h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded-2xl border border-border w-full max-w-md">
+        <h1 class="font-serif text-2xl text-center text-[#1A1A1A] mb-2">Admin Login</h1>
+        <p class="text-center text-muted mb-6">Sign in to access the admin panel</p>
+        {# Login form: posts email/password to auth.admin_login; includes CSRF token and a link back to the storefront. #}
+
+        <form method="POST" action="{{ url_for('auth.admin_login') }}" class="space-y-4">
+            {{ csrf_input() }}
+            <div>
+                <input type="email" name="email" placeholder="Email address" required class="w-full px-4 py-3 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <input type="password" name="password" placeholder="Password" required class="w-full px-4 py-3 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <button type="submit" class="w-full bg-primary text-white py-3 rounded-full font-medium hover:bg-opacity-90 transition-colors">Sign In</button>
+        </form>
+        <div class="mt-6 text-center">
+            <a href="{{ url_for('storefront.index') }}" class="text-sm text-muted hover:text-primary transition-colors">&larr; Back to storefront</a>
+        </div>
+    </div>
+</body>
+</html>
+

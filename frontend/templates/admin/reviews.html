@@ -1,0 +1,72 @@
+{# Admin reviews list: renders review moderation table. Extends admin/base.html. Consumes: reviews (list of Review). POST actions: admin.review_approve, admin.review_reject. #}
+{% extends "admin/base.html" %}
+{% block title %}Reviews{% endblock %}
+{% block page_title %}Reviews{% endblock %}
+{% block page_title_mobile %}Reviews{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page title #}
+    <h1 class="font-serif text-2xl text-[#1A1A1A]">Reviews</h1>
+
+    {# Reviews table card #}
+    <div class="bg-white rounded-2xl border border-border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-section">
+                    <tr>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Product</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Customer</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Rating</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Comment</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Date</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-custom">
+                    {% if reviews %}
+                        {% for review in reviews %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium">{{ review.product.name if review.product else 'N/A' }}</td>
+                                <td class="px-6 py-4 text-sm">{{ review.user.name if review.user else 'Anonymous' }}</td>
+                                <td class="px-6 py-4">
+                                    {# Star rating display (5 stars) #}
+                                    <div class="flex items-center gap-1">
+                                        {% for i in range(5) %}
+                                            <i data-lucide="star" class="w-4 h-4 {% if i < review.rating %}text-secondary fill-secondary{% else %}text-gray-300{% endif %}"></i>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-muted max-w-xs truncate">{{ review.comment or '-' }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ review.created_at.strftime('%b %d, %Y') if review.created_at else 'N/A' }}</td>
+                                <td class="px-6 py-4">
+                                    {# Approve/Reject actions for unapproved; Approved badge otherwise #}
+                                    <div class="flex items-center gap-2">
+                                        {% if not review.is_approved %}
+                                            <form method="POST" action="{{ url_for('admin.review_approve', id=review.id) }}" class="inline">
+                                                {{ csrf_input() }}
+                                                <button type="submit" class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium hover:bg-green-200 transition-colors">Approve</button>
+                                            </form>
+                                            <form method="POST" action="{{ url_for('admin.review_reject', id=review.id) }}" class="inline">
+                                                {{ csrf_input() }}
+                                                <button type="submit" class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-medium hover:bg-red-200 transition-colors">Reject</button>
+                                            </form>
+                                        {% else %}
+                                            <span class="text-xs text-success font-medium">Approved</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        {# Empty state #}
+                        <tr>
+                            <td colspan="6" class="px-6 py-8 text-center text-muted">No reviews yet.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

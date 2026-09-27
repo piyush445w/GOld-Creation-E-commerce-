@@ -1,0 +1,93 @@
+{% extends "admin/base.html" %}
+{% block title %}Coupons{% endblock %}
+{% block page_title %}Coupons{% endblock %}
+{% block page_title_mobile %}Coupons{% endblock %}
+{# Admin coupons list page. Extends admin/base.html. Renders the Coupons index in the admin back-office.
+   Consumes: coupons (list of Coupon objects), pagination (Pagination object with pages, page, has_prev, has_next).
+   Endpoints: admin.coupon_new (create), admin.coupon_edit (edit), admin.coupon_delete (delete), admin.coupons_list (pagination). #}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">Coupons</h1>
+        <a href="{{ url_for('admin.coupon_new') }}" class="inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Add Coupon
+        </a>
+    </div>
+
+    {# Coupons table: columns Code, Type, Value, Min Order, Valid Dates, Usage, Active, Actions.
+       Row actions: Edit -> admin.coupon_edit, Delete -> admin.coupon_delete (POST with CSRF). #}
+    <div class="bg-white rounded-2xl border border-border overflow-hidden">
+        <div class="overflow-x-auto">
+            {# Table header: Code, Type, Value, Min Order, Valid Dates, Usage, Active, Actions #}
+            <table class="min-w-full">
+                <thead class="bg-section">
+                    <tr>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Code</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Type</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Value</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Min Order</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Valid Dates</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Usage</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Active</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-custom">
+                    {# Iterate coupons list; each row shows coupon.code, discount_type, discount_value, min_order_value,
+                       valid_from/valid_to, times_used/usage_limit, is_active badge, Edit/Delete actions. #}
+                    {% if coupons %}
+                        {% for coupon in coupons %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium">{{ coupon.code }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ coupon.discount_type|title }}</td>
+                                <td class="px-6 py-4 text-sm">{{ coupon.discount_value }}{% if coupon.discount_type == 'percent' %}%{% endif %}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ coupon.min_order_value or 'None' }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">
+                                    {{ coupon.valid_from.strftime('%b %d') if coupon.valid_from else 'N/A' }} - {{ coupon.valid_to.strftime('%b %d, %Y') if coupon.valid_to else 'N/A' }}
+                                </td>
+                                <td class="px-6 py-4 text-sm">{{ coupon.times_used or 0 }}{% if coupon.usage_limit %} / {{ coupon.usage_limit }}{% endif %}</td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium {% if coupon.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                        {{ 'Active' if coupon.is_active else 'Inactive' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    {# Row actions: Edit link to admin.coupon_edit, Delete form POST to admin.coupon_delete with CSRF #}
+                                    <div class="flex items-center gap-3">
+                                        <a href="{{ url_for('admin.coupon_edit', id=coupon.id) }}" class="text-sm text-primary hover:underline">Edit</a>
+                                        <form method="POST" action="{{ url_for('admin.coupon_delete', id=coupon.id) }}" class="inline" onsubmit="return confirm('Are you sure?');">
+                                            {{ csrf_input() }}
+                                            <button type="submit" class="text-sm text-[#D64545] hover:underline">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        {# Empty state: shows when coupons list is empty, links to admin.coupon_new #}
+                        <tr>
+                            <td colspan="8" class="px-6 py-8 text-center text-muted">No coupons yet. <a href="{{ url_for('admin.coupon_new') }}" class="text-primary hover:underline">Add your first coupon</a>.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {# Pagination controls: Previous, page numbers, Next links to admin.coupons_list with page parameter #}
+        {% if pagination and pagination.pages > 1 %}
+            <div class="px-6 py-4 border-t border-border flex items-center justify-center gap-2">
+                {% if pagination.has_prev %}
+                    <a href="{{ url_for('admin.coupons_list', page=pagination.page - 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Previous</a>
+                {% endif %}
+                {% for page_num in range(1, pagination.pages + 1) %}
+                    <a href="{{ url_for('admin.coupons_list', page=page_num) }}" class="px-3 py-1 rounded-lg text-sm {% if page_num == pagination.page %}bg-primary text-white{% else %}border border-border hover:bg-section transition-colors{% endif %}">{{ page_num }}</a>
+                {% endfor %}
+                {% if pagination.has_next %}
+                    <a href="{{ url_for('admin.coupons_list', page=pagination.page + 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Next</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

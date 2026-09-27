@@ -1,0 +1,184 @@
+{# My Account - the signed-in shopper's landing page.
+
+   Extends base.html, so the shared header, currency switcher and cart/wishlist
+
+   badges come from the layout. Rendered by the storefront blueprint behind
+
+   @login_required; everything here reads `current_user` directly, so no view
+
+   variables are passed.
+
+
+
+   It is a hub rather than an editor: a sidebar linking to the order history
+
+   and address book, plus a read-only summary of the account itself. #}
+
+{% extends "base.html" %}
+
+{% block title %}My Account{% endblock %}
+
+{% block content %}
+
+{# Breadcrumb trail: Home > My Account. #}
+
+<nav class="text-sm text-[#6B6B6B] py-4">
+
+    <div class="max-w-7xl mx-auto px-4">
+
+        <a href="{{ url_for('storefront.index') }}" class="hover:text-[#8B1E3F]">Home</a>
+
+        <span class="mx-2">/</span>
+
+        <span class="text-[#1A1A1A]">My Account</span>
+
+    </div>
+
+</nav>
+
+
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+    <h1 class="font-serif text-3xl mb-8">My Account</h1>
+
+
+
+    {# Two-column layout: a persistent sidebar on the left, account details on
+
+       the right. Stacks to a single column on small screens. #}
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <div class="md:col-span-1">
+
+            <div class="border border-[#E5E2DD] rounded-2xl p-6">
+
+                {# Identity card: monogram avatar plus name/email. The avatar
+
+                   falls back to the first letter of the email when a legacy
+
+                   account has no name set. #}
+
+                <div class="flex items-center gap-4 mb-6">
+
+                    <div class="w-14 h-14 rounded-full bg-[#8B1E3F] text-white flex items-center justify-center text-xl font-medium">
+
+                        {{ current_user.name[0]|upper if current_user.name else current_user.email[0]|upper }}
+
+                    </div>
+
+                    <div>
+
+                        <p class="font-medium">{{ current_user.name }}</p>
+
+                        <p class="text-sm text-[#6B6B6B]">{{ current_user.email }}</p>
+
+                    </div>
+
+                </div>
+
+                {# Account navigation. Each entry is a GET link except Logout,
+
+                   which must be a POST to auth.logout so a stray link or
+
+                   prefetch cannot sign the shopper out. #}
+
+                <nav class="space-y-1">
+
+                    <a href="{{ url_for('storefront.account_orders') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#FAF9F7] transition text-sm">
+
+                        <i data-lucide="package" class="w-4 h-4 text-[#6B6B6B]"></i>
+
+                        My Orders
+
+                    </a>
+
+                    <a href="{{ url_for('storefront.account_addresses') }}" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#FAF9F7] transition text-sm">
+
+                        <i data-lucide="map-pin" class="w-4 h-4 text-[#6B6B6B]"></i>
+
+                        Addresses
+
+                    </a>
+
+                    {# Logout form: CSRF-protected POST, styled to match the
+
+                       sibling links but in red to read as a destructive action. #}
+
+                    <form method="POST" action="{{ url_for('auth.logout') }}" class="mt-2">
+
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+                        <button type="submit" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#FAF9F7] transition text-sm text-left text-red-600">
+
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+
+                            Logout
+
+                        </button>
+
+                    </form>
+
+                </nav>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="md:col-span-2">
+
+            {# Read-only account details. These fields are intentionally not
+
+               editable here - changing an email would need re-verification,
+
+               which this project does not implement. #}
+
+            <div class="border border-[#E5E2DD] rounded-2xl p-6">
+
+                <h2 class="font-medium text-lg mb-4">Account Information</h2>
+
+                <div class="space-y-4">
+
+                    {# Label/value rows separated by hairlines. #}
+
+                    <div class="flex justify-between py-3 border-b border-[#E5E2DD]">
+
+                        <span class="text-[#6B6B6B]">Full Name</span>
+
+                        <span class="font-medium">{{ current_user.name }}</span>
+
+                    </div>
+
+                    <div class="flex justify-between py-3 border-b border-[#E5E2DD]">
+
+                        <span class="text-[#6B6B6B]">Email</span>
+
+                        <span class="font-medium">{{ current_user.email }}</span>
+
+                    </div>
+
+                    {# created_at is nullable, hence the N/A fallback. #}
+
+                    <div class="flex justify-between py-3 border-b border-[#E5E2DD]">
+
+                        <span class="text-[#6B6B6B]">Member Since</span>
+
+                        <span class="font-medium">{{ current_user.created_at.strftime('%B %d, %Y') if current_user.created_at else 'N/A' }}</span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
+

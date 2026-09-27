@@ -1,0 +1,109 @@
+{# Storefront cart page: extends base.html and lists the lines in the current session's cart.
+   Role in the purchase flow: stage between product browsing and checkout; the customer edits quantities,
+   removes lines, checks the summary and then hands off to checkout.checkout.
+   Consumes: items (list of cart lines, each with .id/.quantity/.variant), subtotal, format_currency(). #}
+{% extends "base.html" %}
+{% block title %}Shopping Cart{% endblock %}
+{% block content %}
+{# Breadcrumb back to the storefront home page. #}
+<nav class="text-sm text-[#6B6B6B] py-4">
+    <div class="max-w-7xl mx-auto px-4">
+        <a href="{{ url_for('storefront.index') }}" class="hover:text-[#8B1E3F]">Home</a>
+        <span class="mx-2">/</span>
+        <span class="text-[#1A1A1A]">Cart</span>
+    </div>
+</nav>
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <h1 class="font-serif text-3xl mb-8">Shopping Cart</h1>
+
+    {# Non-empty cart: lines on the left, sticky order summary on the right.
+       An empty cart short-circuits to the empty state at the bottom. #}
+    {% if items %}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-2 space-y-4">
+            {# One row per cart line; the effective unit price is price_override when set, else product.base_price. #}
+            {% for item in items %}
+            <div class="flex gap-4 p-4 border border-[#E5E2DD] rounded-2xl">
+                {# Thumbnail: first product media ordered by display_order, with a placeholder if it is not an image. #}
+                <div class="w-24 h-24 md:w-32 md:h-32 rounded-xl overflow-hidden bg-[#FAF9F7] flex-shrink-0">
+                    {% set first_image = item.variant.product.media.all()|sort(attribute='display_order')|first %}{% if first_image and first_image.media_type == 'image' %}
+                    <img src="{{ first_image.media_url if first_image else "" }}" alt="{{ item.variant.product.name }}" class="w-full h-full object-cover">
+                    {% else %}
+                    <div class="w-full h-full flex items-center justify-center text-[#6B6B6B] text-xs">No Image</div>
+                    {% endif %}
+                </div>
+                {# Line details: product link, chosen size/colour joined, and the unit price in current_currency. #}
+                <div class="flex-1 min-w-0">
+                    <a href="{{ url_for('storefront.product_detail', slug=item.variant.product.slug) }}" class="font-medium hover:text-[#8B1E3F]">{{ item.variant.product.name }}</a>
+                    <p class="text-sm text-[#6B6B6B] mt-1">{{ [item.variant.size, item.variant.color]|join(' / ')|trim(' / ') }}</p>
+                    <p class="font-semibold text-[#8B1E3F] mt-1">{{ format_currency(item.variant.price_override if item.variant.price_override else item.variant.product.base_price) }}</p>
+                    {# Quantity stepper POSTs to cart.update_cart for this item.id; the -/+ buttons are driven by the shared qty-decr/qty-incr JS. #}
+                    <div class="flex items-center gap-2 mt-2">
+                        <form action="{{ url_for('cart.update_cart', item_id=item.id) }}" method="POST" class="flex items-center gap-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="button" class="qty-decr w-8 h-8 border rounded-full flex items-center justify-center hover:border-[#8B1E3F] transition">-</button>
+                            <input type="number" name="quantity" value="{{ item.quantity }}" min="1" max="{{ item.variant.stock_quantity }}" class="w-12 text-center border rounded-lg py-1 text-sm qty-input">
+                            <button type="button" class="qty-incr w-8 h-8 border rounded-full flex items-center justify-center hover:border-[#8B1E3F] transition">+</button>
+                        </form>
+                    </div>
+                    {# Remove control: separate POST to cart.remove_from_cart for this line's item.id. #}
+                    <form action="{{ url_for('cart.remove_from_cart', item_id=item.id) }}" method="POST" class="mt-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="text-sm text-red-500 hover:text-red-700 transition">Remove</button>
+                    </form>
+                </div>
+                {# Line total, desktop only: effective unit price times item.quantity. #}
+                <div class="hidden md:flex flex-col items-end justify-between">
+                    <span class="font-semibold">{{ format_currency((item.variant.price_override if item.variant.price_override else item.variant.product.base_price) * item.quantity) }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {# Order summary panel (sticky). No coupon form exists on this page:
+           discount is currently a hardcoded -0 and shipping is flat "Free". #}
+        <div class="lg:col-span-1">
+            <div class="border border-[#E5E2DD] rounded-2xl p-6 sticky top-24">
+                <h3 class="font-medium text-lg mb-4">Order Summary</h3>
+                <div class="space-y-3">
+                    {# Subtotal across all lines, formatted in current_currency. #}
+                    <div class="flex justify-between py-2 border-b border-[#E5E2DD]">
+                        <span class="text-[#6B6B6B]">Subtotal</span>
+                        <span class="font-medium">{{ format_currency(subtotal) }}</span>
+                    </div>
+                    {# Shipping cost: free at cart stage, recalculated at checkout. #}
+                    <div class="flex justify-between py-2 border-b border-[#E5E2DD]">
+                        <span class="text-[#6B6B6B]">Shipping</span>
+                        <span class="font-medium">Free</span>
+                    </div>
+                    {# Discount row: placeholder until coupon support lands. #}
+                    <div class="flex justify-between py-2 border-b border-[#E5E2DD]">
+                        <span class="text-[#6B6B6B]">Discount</span>
+                        <span class="font-medium text-green-600">-{{ format_currency(0) }}</span>
+                    </div>
+                    {# Grand total: currently the cart subtotal in current_currency. #}
+                    <div class="flex justify-between py-3">
+                        <span class="font-semibold text-lg">Total</span>
+                        <span class="font-semibold text-lg text-[#8B1E3F]">{{ format_currency(subtotal) }}</span>
+                    </div>
+                </div>
+
+                {# Hand-off into the checkout flow; GET so the existing cart carries over. #}
+                <form action="{{ url_for('checkout.checkout') }}" method="GET" class="mt-4">
+                    <button type="submit" class="w-full bg-[#8B1E3F] text-white py-4 rounded-full hover:bg-[#8B1E3F]/90 transition">Proceed to Checkout</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {# Empty-cart state: no lines yet, so offer a route back into the shop. #}
+    {% else %}
+    <div class="text-center py-12">
+        <i data-lucide="shopping-cart" class="w-16 h-16 text-[#E5E2DD] mx-auto mb-4"></i>
+        <p class="text-[#6B6B6B] mb-6">Your cart is empty.</p>
+        <a href="{{ url_for('storefront.shop') }}" class="inline-block bg-[#1A1A1A] text-white px-8 py-3 rounded-full hover:bg-[#1A1A1A]/90 transition">Continue Shopping</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

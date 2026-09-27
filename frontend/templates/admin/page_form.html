@@ -1,0 +1,204 @@
+{# Admin page form: renders add/edit page form. Extends admin/base.html. Consumes: page (Page model or None). POSTs to admin.page_create or admin.page_update. #}
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit Page' if page else 'Add Page' }}{% endblock %}
+{% block page_title %}{{ 'Edit Page' if page else 'Add Page' }}{% endblock %}
+{% block page_title_mobile %}{{ 'Edit Page' if page else 'Add Page' }}{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page header with title and back link #}
+    <div class="flex items-center justify-between">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">{{ 'Edit Page' if page else 'Add Page' }}</h1>
+        <a href="{{ url_for('admin.pages_list') }}" class="text-sm text-muted hover:text-primary transition-colors">&larr; Back to Pages</a>
+    </div>
+
+    {# Page form: POSTs to admin.page_create (add) or admin.page_update (edit). Includes CSRF. #}
+    <form method="POST" class="bg-white rounded-2xl border border-border p-8 max-w-3xl">
+        {{ csrf_input() }}
+        <div class="space-y-6">
+            {# Title field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Title</label>
+                <input type="text" name="title" value="{{ page.title if page else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Slug field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Slug</label>
+                <input type="text" name="slug" value="{{ page.slug if page else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Content field (textarea) #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Content</label>
+                <textarea name="content" rows="15" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">{{ page.content if page else '' }}</textarea>
+            </div>
+            {# Meta Title field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Meta Title</label>
+                <input type="text" name="meta_title" value="{{ page.meta_title if page else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Meta Description field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Meta Description</label>
+                <textarea name="meta_description" rows="3" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">{{ page.meta_description if page else '' }}</textarea>
+            </div>
+            {# Published checkbox #}
+            <div class="flex items-center">
+                <input type="checkbox" name="is_published" id="is_published" {% if not page or page.is_published %}checked{% endif %} class="w-4 h-4 text-primary border-border rounded focus:ring-primary">
+                <label for="is_published" class="ml-2 text-sm text-[#1A1A1A]">Published</label>
+            </div>
+            {% if page %}
+            <div>
+                <h3 class="block text-sm font-medium text-muted mb-2">Media</h3>
+                <div class="flex items-center gap-2 mb-4">
+                    <button type="button" id="btn-add-images" class="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">
+                        <i data-lucide="image" class="w-4 h-4"></i>
+                        Add Images
+                    </button>
+                </div>
+                <div class="border-2 border-dashed border-border rounded-2xl p-8 text-center mb-6 relative" id="media-drop-zone">
+                    <i data-lucide="upload-cloud" class="w-12 h-12 text-muted mx-auto mb-4"></i>
+                    <p class="text-sm text-muted mb-2">Drag and drop files here, or click to browse</p>
+                    <input type="hidden" name="media_type" value="image">
+                    <input type="file" id="media-file-input" name="file" multiple accept="image/*" class="hidden">
+                    <button type="button" id="btn-browse" class="mt-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">Browse Files</button>
+                    <div id="upload-progress-overlay" class="absolute inset-0 bg-white/95 rounded-2xl flex flex-col items-center justify-center hidden">
+                        <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        <p class="mt-4 text-sm text-muted" id="upload-progress-label">Uploading...</p>
+                        <div class="w-48 h-2 bg-border rounded-full mt-3 overflow-hidden">
+                            <div id="upload-progress-bar" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <span id="upload-progress-text" class="text-xs text-muted mt-1">0%</span>
+                    </div>
+                </div>
+                <script>
+                    (function() {
+                        const pageId = {{ page.id }};
+                        const csrfToken = '{{ csrf_token() }}';
+                        const fileInput = document.getElementById('media-file-input');
+                        const mediaTypeInput = document.querySelector('input[name="media_type"]');
+
+                        document.getElementById('btn-add-images').addEventListener('click', function() {
+                            mediaTypeInput.value = 'image';
+                            fileInput.click();
+                        });
+                        document.getElementById('btn-browse').addEventListener('click', function() {
+                            fileInput.click();
+                        });
+
+                        fileInput.addEventListener('change', function() {
+                            if (!fileInput.files.length) return;
+                            const formData = new FormData();
+                            for (let i = 0; i < fileInput.files.length; i++) {
+                                formData.append('file', fileInput.files[i]);
+                            }
+                            formData.append('media_type', mediaTypeInput.value);
+                            formData.append('csrf_token', csrfToken);
+
+                            const overlay = document.getElementById('upload-progress-overlay');
+                            const progressBar = document.getElementById('upload-progress-bar');
+                            const progressText = document.getElementById('upload-progress-text');
+                            const progressLabel = document.getElementById('upload-progress-label');
+                            overlay.classList.remove('hidden');
+                            progressBar.style.width = '0%';
+                            progressText.textContent = '0%';
+                            progressLabel.textContent = 'Uploading...';
+
+                            const xhr = new XMLHttpRequest();
+                            xhr.upload.addEventListener('progress', function(e) {
+                                if (e.lengthComputable) {
+                                    const percent = Math.round((e.loaded / e.total) * 100);
+                                    progressBar.style.width = percent + '%';
+                                    progressText.textContent = percent + '%';
+                                }
+                            });
+                            xhr.open('POST', '/admin/pages/' + pageId + '/media');
+                            xhr.onload = function() {
+                                overlay.classList.add('hidden');
+                                if (xhr.status === 200) {
+                                    progressLabel.textContent = 'Upload complete!';
+                                    setTimeout(() => location.reload(), 500);
+                                } else {
+                                    alert('Upload failed: ' + (xhr.responseText || 'Please try again.'));
+                                    fileInput.value = '';
+                                }
+                            };
+                            xhr.onerror = function() {
+                                overlay.classList.add('hidden');
+                                alert('Upload failed. Please check your connection and try again.');
+                                fileInput.value = '';
+                            };
+                            xhr.send(formData);
+                        });
+
+                        function deleteMedia(mediaId) {
+                            fetch('/admin/pages/' + pageId + '/media/' + mediaId + '/delete', {
+                                method: 'POST',
+                                headers: {'X-CSRFToken': csrfToken}
+                            }).then(() => location.reload());
+                        }
+
+                        function setPrimary(mediaId) {
+                            fetch('/admin/pages/' + pageId + '/media/' + mediaId + '/primary', {
+                                method: 'POST',
+                                headers: {'X-CSRFToken': csrfToken}
+                            }).then(() => location.reload());
+                        }
+
+                        document.querySelectorAll('.page-media-card .btn-delete').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const mediaId = this.dataset.mediaId;
+                                if (confirm('Delete this media?')) deleteMedia(mediaId);
+                            });
+                        });
+                        document.querySelectorAll('.page-media-card .btn-primary').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const mediaId = this.dataset.mediaId;
+                                setPrimary(mediaId);
+                            });
+                        });
+                    })();
+                </script>
+                {% if page.media %}
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {% for media in page.media %}
+                            <div class="page-media-card border border-border rounded-xl overflow-hidden">
+                                <div class="aspect-square bg-section flex items-center justify-center relative">
+                                    {% if media.media_type == 'image' %}
+                                        <img src="{{ url_for('media.serve_page_media', page_id=page.id, media_id=media.id) }}" alt="" class="w-full h-full object-cover">
+                                    {% elif media.media_type == 'video' %}
+                                        <video src="{{ url_for('media.serve_page_media', page_id=page.id, media_id=media.id) }}" poster="{{ media.thumbnail_url or '' }}" class="w-full h-full object-cover"></video>
+                                        <div class="absolute inset-0 flex items-center justify-center">
+                                            <div class="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
+                                                <i data-lucide="play" class="w-5 h-5 text-white"></i>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="p-3">
+                                    <span class="text-xs uppercase tracking-wider text-muted">{{ media.media_type }}</span>
+                                    {% if media.is_primary %}
+                                        <span class="ml-2 text-xs bg-secondary text-white px-2 py-0.5 rounded-full">Primary</span>
+                                    {% endif %}
+                                    <div class="flex items-center gap-2 mt-2">
+                                        {% if not media.is_primary %}
+                                            <button type="button" class="btn-primary text-xs bg-section px-2 py-1 rounded hover:bg-gray-200 transition-colors" data-media-id="{{ media.id }}">Set Primary</button>
+                                        {% endif %}
+                                        <button type="button" class="btn-delete text-xs text-[#D64545] hover:underline ml-auto" data-media-id="{{ media.id }}">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="media_order" value="{{ page.media|map(attribute='id')|join(',') }}">
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {# Form actions: Save and Cancel #}
+        <div class="flex items-center gap-4 mt-8">
+            <button type="submit" class="bg-primary text-white px-6 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors">Save Page</button>
+            <a href="{{ url_for('admin.pages_list') }}" class="border border-border px-6 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+

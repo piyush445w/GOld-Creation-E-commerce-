@@ -1,0 +1,31 @@
+# --- Framework core ---
+Flask==2.3.3                 # Web framework: routing, request/response, templating.
+Flask-SQLAlchemy==3.1.1      # ORM integration: provides the db object and model helpers.
+Flask-Login==0.6.3           # User session management: login/logout, current_user, role checks.
+Flask-WTF==1.1.1             # Form handling + CSRF protection for admin and checkout forms.
+Flask-Mail==0.9.1            # Email sending wrapper used for order confirmations and password resets.
+Werkzeug==2.3.7              # WSGI utilities, password hashing, request/response objects.
+# --- Database driver ---
+PyMySQL==1.1.0               # MySQL driver used to connect to MySQL 8.0 via SQLAlchemy.
+cryptography==41.0.7         # Required by PyMySQL for secure connections / token verification.
+# --- Scheduling ---
+APScheduler==3.10.4          # Background scheduler for daily currency-rate refresh and cart reminders.
+# --- Payments ---
+# (Razorpay and PayPal are integrated via server-side REST calls; no extra SDK pinned here.)
+# --- Notifications ---
+twilio==8.10.0               # SDK for sending SMS and WhatsApp order notifications.
+requests==2.31.0             # HTTP client used for payment gateway REST calls.
+# --- Media / image handling ---
+Pillow>=11.3.0               # Image processing: thumbnails, format validation, resizing for the media library.
+# --- Environment & deployment ---
+python-dotenv                 # Loads .env files into os.environ for local dev and containerized runs.
+gunicorn                       # Production WSGI server used in the Docker image.
+Flask-Migrate                  # Alembic integration: manages DB schema migrations via Flask.
+alembic                        # Migration engine (used together with Flask-Migrate).
+email_validator                # Validates user email format on signup and admin creation.
+Flask-Limiter==3.5.0          # Rate limiting to protect auth endpoints and checkout from abuse.
+pyotp==2.9.0                   # Time-based one-time passwords for admin 2FA.
+qrcode==7.4.2                  # Generate QR codes for TOTP setup and payment display.
+# --- Testing ---
+pytest                         # Test runner: discovers and executes tests in backend/tests/.
+pytest-flask                   # Pytest plugin: provides the Flask test client and fixtures.

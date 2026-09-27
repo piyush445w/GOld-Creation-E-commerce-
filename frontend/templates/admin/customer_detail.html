@@ -1,0 +1,94 @@
+{# Admin back-office: single customer profile page.
+   Extends "admin/base.html". Role: read-only detail view of one customer -
+   contact/preference summary on the left, that customer's order history table
+   on the right. No forms or mutations live here.
+   View variables consumed: `customer` (the Customer record) and `orders`
+   (list of that customer's Order rows). #}
+{% extends "admin/base.html" %}
+{% block title %}Customer Detail{% endblock %}
+{% block page_title %}Customer Detail{% endblock %}
+{% block page_title_mobile %}Customer Detail{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page header: back link to the customer index, admin.customers_list. #}
+    <a href="{{ url_for('admin.customers_list') }}" class="inline-flex items-center gap-2 text-sm text-muted hover:text-primary transition-colors">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+        Back to Customers
+    </a>
+
+    {# Two-column layout: identity card (1 col) + orders table (2 cols). #}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-1">
+            {# Summary card: customer name and the profile attributes read from the
+               `customer` model - email, phone, country, preferred_currency and created_at. #}
+            <div class="bg-white rounded-2xl border border-[#E5E2DD] p-6">
+                <h3 class="text-xl font-semibold mb-4">{{ customer.name or 'N/A' }}</h3>
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <p class="text-muted">Email</p>
+                        <p class="text-[#1A1A1A]">{{ customer.email }}</p>
+                    </div>
+                    <div>
+                        <p class="text-muted">Phone</p>
+                        <p class="text-[#1A1A1A]">{{ customer.phone or '-' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-muted">Country</p>
+                        <p class="text-[#1A1A1A]">{{ customer.country or '-' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-muted">Currency</p>
+                        <p class="text-[#1A1A1A]">{{ customer.preferred_currency or '-' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-muted">Joined</p>
+                        <p class="text-[#1A1A1A]">{{ customer.created_at.strftime('%b %d, %Y') if customer.created_at else 'N/A' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2">
+            {# Order history section heading. #}
+            <h3 class="font-semibold text-lg mb-4">Orders</h3>
+            {# Orders table. Columns: Order # (order.id), Date (order.placed_at),
+               Total (order.total), Status (order.status), Payment (order.payment_method).
+               One row per entry in `orders`. #}
+            <div class="bg-white rounded-2xl border border-[#E5E2DD] overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-[#FAF9F7]">
+                            <tr>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Order #</th>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Date</th>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Total</th>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Status</th>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Payment</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-[#E5E2DD]">
+                            {# Iterate the customer's orders; falls through to the empty state when `orders` is empty. #}
+                            {% if orders %}
+                                {% for order in orders %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 text-sm">#{{ order.id }}</td>
+                                        <td class="px-6 py-4 text-sm text-muted">{{ order.placed_at.strftime('%b %d, %Y') if order.placed_at else 'N/A' }}</td>
+                                        <td class="px-6 py-4 text-sm">{{ order.total or 'N/A' }}</td>
+                                        <td class="px-6 py-4 text-sm">{{ order.status|title if order.status else 'N/A' }}</td>
+                                        <td class="px-6 py-4 text-sm text-muted">{{ order.payment_method or '-' }}</td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                {# Empty state: this customer has not placed any orders yet. #}
+                                <tr>
+                                    <td colspan="5" class="px-6 py-8 text-center text-muted">No orders yet.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

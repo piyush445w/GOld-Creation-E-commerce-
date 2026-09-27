@@ -1,0 +1,90 @@
+{# Admin back-office: add / edit form for a single discount coupon.
+   Extends "admin/base.html". Dual-purpose template: it is reused by the create
+   and the edit routes, switching labels on whether `coupon` is set.
+   Role: render the create/edit form for the Coupon model and POST it back to
+   the coupons create or edit endpoint.
+   View variables consumed: `coupon` (existing Coupon or None) and `categories`
+   (iterable of Category rows for the "Applies To" scope dropdown). #}
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit Coupon' if coupon else 'Add Coupon' }}{% endblock %}
+{% block page_title %}{{ 'Edit Coupon' if coupon else 'Add Coupon' }}{% endblock %}
+{% block page_title_mobile %}{{ 'Edit Coupon' if coupon else 'Add Coupon' }}{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page header: dynamic h1 ("Edit"/"Add Coupon") plus a back link to admin.coupons_list. #}
+    <div class="flex items-center justify-between">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">{{ 'Edit Coupon' if coupon else 'Add Coupon' }}</h1>
+        <a href="{{ url_for('admin.coupons_list') }}" class="text-sm text-muted hover:text-primary transition-colors">&larr; Back to Coupons</a>
+    </div>
+
+    {# The create/edit form. It POSTs to the current URL, which is the coupons
+       create or edit endpoint depending on whether `coupon` is present. #}
+    <form method="POST" class="bg-white rounded-2xl border border-border p-8 max-w-2xl">
+        {# CSRF token for the form POST. #}
+        {{ csrf_input() }}
+        <div class="space-y-6">
+            {# Coupon.code - the customer-entered code string, styled uppercase. #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Coupon Code</label>
+                <input type="text" name="code" value="{{ coupon.code if coupon else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary uppercase">
+            </div>
+            {# Coupon.discount_type - "percent" or "flat", re-selected on edit. #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Discount Type</label>
+                <select name="discount_type" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option value="percent" {% if coupon and coupon.discount_type == 'percent' %}selected{% endif %}>Percentage</option>
+                    <option value="flat" {% if coupon and coupon.discount_type == 'flat' %}selected{% endif %}>Fixed Amount</option>
+                </select>
+            </div>
+            {# Coupon.discount_value - the amount or percentage the coupon takes off. #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Discount Value</label>
+                <input type="number" name="discount_value" step="0.01" value="{{ coupon.discount_value if coupon else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Coupon.min_order_value - optional minimum cart total required to use the coupon. #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Minimum Order Value</label>
+                <input type="number" name="min_order_value" step="0.01" value="{{ coupon.min_order_value if coupon else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Validity window: Coupon.valid_from and Coupon.valid_to, formatted for <input type="date">. #}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">Valid From</label>
+                    <input type="date" name="valid_from" value="{{ coupon.valid_from.strftime('%Y-%m-%d') if coupon and coupon.valid_from else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">Valid To</label>
+                    <input type="date" name="valid_to" value="{{ coupon.valid_to.strftime('%Y-%m-%d') if coupon and coupon.valid_to else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+            </div>
+            {# Coupon.usage_limit - usage cap (total redemptions allowed); empty means unrestricted. #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Usage Limit</label>
+                <input type="number" name="usage_limit" value="{{ coupon.usage_limit if coupon else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Category scope: Coupon.applies_to_category_id. Options come from `categories`;
+               the empty value means the coupon applies to all categories. #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Applies To Category</label>
+                <select name="applies_to_category_id" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option value="">-- All Categories --</option>
+                    {% for category in categories %}
+                        <option value="{{ category.id }}" {% if coupon and coupon.applies_to_category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {# Coupon.is_active - toggle; defaults to checked for a brand new coupon. #}
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="is_active" {% if not coupon or coupon.is_active %}checked{% endif %} class="w-4 h-4 text-primary border-border rounded focus:ring-primary">
+                <label for="is_active" class="ml-2 text-sm text-[#1A1A1A]">Active</label>
+            </div>
+        </div>
+        {# Form actions: submit posts to the current create/edit endpoint; Cancel returns to admin.coupons_list. #}
+        <div class="flex items-center gap-4 mt-8">
+            <button type="submit" class="bg-primary text-white px-6 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors">Save Coupon</button>
+            <a href="{{ url_for('admin.coupons_list') }}" class="border border-border px-6 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+

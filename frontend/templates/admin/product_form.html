@@ -1,0 +1,337 @@
+{# Product create/edit form: rendered at admin.product_new (create) and admin.product_edit (edit). Extends admin/base.html. #}
+{# Role: captures product fields, variants (edit only), and media upload. Consumes `product` (None on create), `categories`, and csrf_token(). #}
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit Product' if product else 'Add Product' }}{% endblock %}
+{% block page_title %}{{ 'Edit Product' if product else 'Add Product' }}{% endblock %}
+{% block page_title_mobile %}{{ 'Edit Product' if product else 'Add Product' }}{% endblock %}
+{% block content %}
+{# Product form page: page header, main product form, variant manager (edit only), and media gallery (edit only). #}
+<div class="space-y-6">
+    {# Page header: dynamic title (Add/Edit) and a Back link to admin.products_list. #}
+    <div class="flex items-center justify-between">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">{{ 'Edit Product' if product else 'Add Product' }}</h1>
+        <a href="{{ url_for('admin.products_list') }}" class="text-sm text-muted hover:text-primary transition-colors">&larr; Back to Products</a>
+    </div>
+
+    {# Main product form: POSTs to the same route (admin.product_new on create, admin.product_edit on edit) with multipart encoding for image uploads. #}
+    <form method="POST" enctype="multipart/form-data" class="bg-white rounded-2xl border border-border p-8 max-w-4xl">
+        {{ csrf_input() }}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="md:col-span-2 md:col-span-1">
+                <label class="block text-sm font-medium text-muted mb-2">Product Name</label>
+                <input type="text" name="name" value="{{ product.name if product else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Category</label>
+                <select name="category_id" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option value="">-- Select Category --</option>
+                    {% for category in categories %}
+                        <option value="{{ category.id }}" {% if product and product.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Base Price</label>
+                <input type="number" name="base_price" step="0.01" value="{{ product.base_price if product else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">SKU</label>
+                <input type="text" name="sku" value="{{ product.sku if product else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Festival Tag</label>
+                <input type="text" name="festival_tag" value="{{ product.festival_tag if product else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="is_active" {% if not product or product.is_active %}checked{% endif %} class="w-4 h-4 text-primary border-border rounded focus:ring-primary">
+                <label for="is_active" class="ml-2 text-sm text-[#1A1A1A]">Active</label>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Meta Title</label>
+                <input type="text" name="meta_title" value="{{ product.meta_title if product else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Meta Description</label>
+                <input type="text" name="meta_description" value="{{ product.meta_description if product else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-muted mb-2">Description</label>
+                <textarea name="description" rows="6" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">{{ product.description if product else '' }}</textarea>
+            </div>
+            {# Variants section: rendered only when editing an existing product; lets admin manage size/color/price/stock variants inline. #}
+            {% if product %}
+            <div class="md:col-span-2">
+                <h3 class="block text-sm font-medium text-muted mb-2">Variants</h3>
+                <div id="variants-list" class="space-y-2 mb-4">
+                    {% for variant in product.variants %}
+                    <div class="flex gap-2 items-center p-3 border border-border rounded-xl" data-variant-id="{{ variant.id }}">
+                        <input type="text" value="{{ variant.size or '' }}" placeholder="Size" class="px-2 py-1 border border-border rounded-lg text-sm w-20">
+                        <input type="text" value="{{ variant.color or '' }}" placeholder="Color" class="px-2 py-1 border border-border rounded-lg text-sm w-28">
+                        <input type="number" value="{{ variant.price_override or '' }}" placeholder="Price" step="0.01" class="px-2 py-1 border border-border rounded-lg text-sm w-24">
+                        <input type="number" value="{{ variant.stock_quantity }}" placeholder="Stock" class="px-2 py-1 border border-border rounded-lg text-sm w-20">
+                        <input type="text" value="{{ variant.image_url or '' }}" placeholder="Image URL" class="px-2 py-1 border border-border rounded-lg text-sm w-40">
+                        <button type="button" class="text-red-500 text-sm" onclick="deleteVariant({{ variant.id }}, this)">Delete</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" id="add-variant-btn" class="text-sm text-primary hover:underline">+ Add Variant</button>
+            </div>
+            <script>
+            let variantCounter = {{ product.variants.count() }};
+            document.getElementById('add-variant-btn').addEventListener('click', function() {
+                variantCounter++;
+                const div = document.createElement('div');
+                div.className = 'flex gap-2 items-center p-3 border border-border rounded-xl';
+                div.innerHTML = `<input type="text" placeholder="Size" class="px-2 py-1 border border-border rounded-lg text-sm w-20"><input type="text" placeholder="Color" class="px-2 py-1 border border-border rounded-lg text-sm w-28"><input type="number" placeholder="Price" step="0.01" class="px-2 py-1 border border-border rounded-lg text-sm w-24"><input type="number" placeholder="Stock" class="px-2 py-1 border border-border rounded-lg text-sm w-20"><input type="text" placeholder="Image URL" class="px-2 py-1 border border-border rounded-lg text-sm w-40"><button type="button" class="text-red-500 text-sm" onclick="this.parentElement.remove()">Delete</button>`;
+                document.getElementById('variants-list').appendChild(div);
+            });
+            function deleteVariant(id, btn) {
+                fetch('/admin/products/{{ product.id }}/variants/' + id, {method: 'DELETE', headers: {'X-CSRFToken': '{{ csrf_token() }}'}}).then(() => { btn.closest('[data-variant-id]').remove(); });
+            }
+            </script>
+            {% endif %}
+        </div>
+        {# Form actions: Save Product submit button and Cancel link back to admin.products_list. #}
+        <div class="flex items-center gap-4 mt-8">
+            <button type="submit" class="bg-primary text-white px-6 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors">Save Product</button>
+            <a href="{{ url_for('admin.products_list') }}" class="border border-border px-6 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">Cancel</a>
+        </div>
+    </form>
+
+    {# Product Media section: rendered only when editing an existing product; drag-drop upload to /admin/products/{id}/media and a media grid. #}
+    {% if product %}
+    <div class="bg-white rounded-2xl border border-border p-8 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-lg">Product Media</h3>
+            <div class="flex items-center gap-2">
+                <button type="button" id="btn-add-images" class="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">
+                    <i data-lucide="image" class="w-4 h-4"></i>
+                    Add Images
+                </button>
+                <button type="button" id="btn-add-videos" class="inline-flex items-center gap-2 border border-border px-4 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">
+                    <i data-lucide="video" class="w-4 h-4"></i>
+                    Add Videos
+                </button>
+            </div>
+        </div>
+        {# Media drop zone: hidden file input triggered by "Add Images/Add Videos/Browse"; XHR POSTs to /admin/products/{id}/media. #}
+        <div class="border-2 border-dashed border-border rounded-2xl p-8 text-center mb-6 relative" id="media-drop-zone">
+            <i data-lucide="upload-cloud" class="w-12 h-12 text-muted mx-auto mb-4"></i>
+            <p class="text-sm text-muted mb-2">Drag and drop files here, or click to browse</p>
+            <input type="hidden" name="media_type" value="image">
+            <input type="file" id="media-file-input" name="file" multiple accept="image/*,video/*" class="hidden">
+            <button type="button" id="btn-browse" class="mt-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">Browse Files</button>
+            <!-- Upload progress overlay -->
+            <div id="upload-progress-overlay" class="absolute inset-0 bg-white/95 rounded-2xl flex flex-col items-center justify-center hidden">
+                <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <p class="mt-4 text-sm text-muted" id="upload-progress-label">Uploading...</p>
+                <div class="w-48 h-2 bg-border rounded-full mt-3 overflow-hidden">
+                    <div id="upload-progress-bar" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <span id="upload-progress-text" class="text-xs text-muted mt-1">0%</span>
+            </div>
+        </div>
+        <script>
+            (function() {
+                const productId = {{ product.id }};
+                const csrfToken = '{{ csrf_token() }}';
+                const fileInput = document.getElementById('media-file-input');
+                const mediaTypeInput = document.querySelector('input[name="media_type"]');
+
+                document.getElementById('btn-add-images').addEventListener('click', function() {
+                    mediaTypeInput.value = 'image';
+                    fileInput.click();
+                });
+                document.getElementById('btn-add-videos').addEventListener('click', function() {
+                    mediaTypeInput.value = 'video';
+                    fileInput.click();
+                });
+                document.getElementById('btn-browse').addEventListener('click', function() {
+                    fileInput.click();
+                });
+
+                fileInput.addEventListener('change', function() {
+                    if (!fileInput.files.length) return;
+                    const formData = new FormData();
+                    for (let i = 0; i < fileInput.files.length; i++) {
+                        formData.append('file', fileInput.files[i]);
+                    }
+                    formData.append('media_type', mediaTypeInput.value);
+                    formData.append('csrf_token', csrfToken);
+
+                    const overlay = document.getElementById('upload-progress-overlay');
+                    const progressBar = document.getElementById('upload-progress-bar');
+                    const progressText = document.getElementById('upload-progress-text');
+                    const progressLabel = document.getElementById('upload-progress-label');
+                    overlay.classList.remove('hidden');
+                    progressBar.style.width = '0%';
+                    progressText.textContent = '0%';
+                    progressLabel.textContent = 'Uploading...';
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.addEventListener('progress', function(e) {
+                        if (e.lengthComputable) {
+                            const percent = Math.round((e.loaded / e.total) * 100);
+                            progressBar.style.width = percent + '%';
+                            progressText.textContent = percent + '%';
+                        }
+                    });
+                    xhr.open('POST', '/admin/products/' + productId + '/media');
+                    xhr.onload = function() {
+                        overlay.classList.add('hidden');
+                        if (xhr.status === 200) {
+                            progressLabel.textContent = 'Upload complete!';
+                            setTimeout(() => location.reload(), 500);
+                        } else {
+                            alert('Upload failed: ' + (xhr.responseText || 'Please try again.'));
+                            fileInput.value = '';
+                        }
+                    };
+                    xhr.onerror = function() {
+                        overlay.classList.add('hidden');
+                        alert('Upload failed. Please check your connection and try again.');
+                        fileInput.value = '';
+                    };
+                    xhr.send(formData);
+                });
+
+                function deleteMedia(mediaId, btn) {
+                    fetch('/admin/products/' + productId + '/media/' + mediaId, {
+                        method: 'DELETE',
+                        headers: {'X-CSRFToken': csrfToken}
+                    }).then(() => location.reload());
+                }
+
+                function setPrimary(mediaId) {
+                    fetch('/admin/products/' + productId + '/media/' + mediaId + '/primary', {
+                        method: 'POST',
+                        headers: {'X-CSRFToken': csrfToken}
+                    }).then(() => location.reload());
+                }
+
+                function changeThumbnail(mediaId, btn) {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = function() {
+                        if (!input.files.length) return;
+                        const formData = new FormData();
+                        formData.append('thumbnail', input.files[0]);
+                        formData.append('csrf_token', csrfToken);
+                        const originalHTML = btn.innerHTML;
+                        btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Uploading\u2026';
+                        btn.disabled = true;
+                        fetch('/admin/products/' + productId + '/media/' + mediaId + '/thumbnail', {
+                            method: 'POST',
+                            body: formData
+                        }).then(r => {
+                            btn.innerHTML = originalHTML;
+                            btn.disabled = false;
+                            lucide.createIcons();
+                            if (r.ok) location.reload();
+                        }).catch(() => {
+                            btn.innerHTML = originalHTML;
+                            btn.disabled = false;
+                            lucide.createIcons();
+                        });
+                    };
+                    input.click();
+                }
+
+                let draggedItem = null;
+
+                function reorderMedia() {
+                    const ids = Array.from(document.querySelectorAll('.media-card')).map(el => el.dataset.mediaId);
+                    fetch('/admin/products/' + productId + '/media/reorder', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                        body: JSON.stringify({media_ids: ids})
+                    }).then(() => {});
+                }
+
+                document.querySelectorAll('.media-card').forEach(card => {
+                    card.setAttribute('draggable', 'true');
+                    card.addEventListener('dragstart', function(e) {
+                        draggedItem = this;
+                        this.style.opacity = '0.4';
+                    });
+                    card.addEventListener('dragend', function() {
+                        this.style.opacity = '1';
+                        draggedItem = null;
+                    });
+                    card.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        if (draggedItem && draggedItem !== this) {
+                            const rect = this.getBoundingClientRect();
+                            const mid = rect.top + rect.height / 2;
+                            if (e.clientY < mid) {
+                                this.parentNode.insertBefore(draggedItem, this);
+                            } else {
+                                this.parentNode.insertBefore(draggedItem, this.nextSibling);
+                            }
+                        }
+                    });
+                    card.addEventListener('drop', function() {
+                        reorderMedia();
+                    });
+                });
+
+                // Attach event listeners to existing media action buttons
+                document.querySelectorAll('.media-card .btn-delete').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const mediaId = this.dataset.mediaId;
+                        if (confirm('Delete this media?')) deleteMedia(mediaId, this);
+                    });
+                });
+                document.querySelectorAll('.media-card .btn-primary').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const mediaId = this.dataset.mediaId;
+                        setPrimary(mediaId);
+                    });
+                });
+            })();
+        </script>
+        {# Existing media grid: one card per product.media with Set Primary / Change Thumbnail / Delete actions and a hidden media_order field for reordering. #}
+        {% if product.media %}
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {% for media in product.media %}
+                    <div class="media-card border border-border rounded-xl overflow-hidden">
+                        <div class="aspect-square bg-section flex items-center justify-center relative">
+                            {% if media.media_type == 'image' %}
+                                <img src="{{ media.media_url }}" alt="" class="w-full h-full object-cover">
+                            {% elif media.media_type == 'video' %}
+                                <video src="{{ media.media_url }}" poster="{{ media.thumbnail_url or '' }}" class="w-full h-full object-cover"></video>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <div class="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
+                                        <i data-lucide="play" class="w-5 h-5 text-white"></i>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="p-3">
+                            <span class="text-xs uppercase tracking-wider text-muted">{{ media.media_type }}</span>
+                            {% if media.is_primary %}
+                                <span class="ml-2 text-xs bg-secondary text-white px-2 py-0.5 rounded-full">Primary</span>
+                            {% endif %}
+                            <div class="flex items-center gap-2 mt-2">
+                                {% if not media.is_primary %}
+                                    <button type="button" class="btn-primary text-xs bg-section px-2 py-1 rounded hover:bg-gray-200 transition-colors" data-media-id="{{ media.id }}">Set Primary</button>
+                                {% endif %}
+                                {% if media.media_type == 'video' %}
+                                    <button type="button" class="text-xs bg-section px-2 py-1 rounded hover:bg-gray-200 transition-colors" onclick="changeThumbnail('{{ media.id }}', this)">Change Thumbnail</button>
+                                {% endif %}
+                                <button type="button" class="btn-delete text-xs text-[#D64545] hover:underline ml-auto" data-media-id="{{ media.id }}">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <input type="hidden" name="media_order" value="{{ product.media|map(attribute='id')|join(',') }}">
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+
+

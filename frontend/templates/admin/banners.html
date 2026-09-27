@@ -1,0 +1,88 @@
+{# Admin back-office: homepage banner listing page.
+   Extends "admin/base.html". Role: show every Banner row with its image, link,
+   ordering, visibility and schedule, and offer per-row edit/delete actions.
+   View variables consumed: `banners` (list of Banner records; empty list renders
+   the empty state). #}
+{% extends "admin/base.html" %}
+{% block title %}Banners{% endblock %}
+{% block page_title %}Banners{% endblock %}
+{% block page_title_mobile %}Banners{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page header: "Banners" title and the action button linking to admin.banner_new. #}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">Banners</h1>
+        <a href="{{ url_for('admin.banner_new') }}" class="inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Add Banner
+        </a>
+    </div>
+
+    {# Banner table. Columns: Title (banner.title), Image (banner.image_url),
+       Link (banner.link_url), Order (banner.display_order), Active (banner.is_active),
+       Dates (banner.start_date / banner.end_date), Actions. #}
+    <div class="bg-white rounded-2xl border border-border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-section">
+                    <tr>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Title</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Image</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Link</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Order</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Active</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Dates</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-custom">
+                    {# One row per banner in `banners`. #}
+                    {% if banners %}
+                        {% for banner in banners %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium">{{ banner.title }}</td>
+                                <td class="px-6 py-4">
+                                    <img src="{{ banner.image_url }}" alt="{{ banner.title }}" class="w-16 h-10 object-cover rounded-lg bg-section">
+                                </td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ banner.link_url or '-' }}</td>
+                                <td class="px-6 py-4 text-sm">{{ banner.display_order }}</td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium {% if banner.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                        {{ 'Active' if banner.is_active else 'Inactive' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-muted">
+                                    {% if banner.start_date or banner.end_date %}
+                                        {{ banner.start_date.strftime('%b %d') if banner.start_date else '...' }} - {{ banner.end_date.strftime('%b %d, %Y') if banner.end_date else '...' }}
+                                    {% else %}
+                                        Always
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-3">
+                                        {# Row action: GET admin.banner_edit with the banner id. #}
+                                        <a href="{{ url_for('admin.banner_edit', id=banner.id) }}" class="text-sm text-primary hover:underline">Edit</a>
+                                        {# Row action: POST admin.banner_delete with the banner id, CSRF protected, confirm-guarded. #}
+                                        <form method="POST" action="{{ url_for('admin.banner_delete', id=banner.id) }}" class="inline" onsubmit="return confirm('Are you sure?');">
+                                            {# CSRF token for the delete POST. #}
+                                            {{ csrf_input() }}
+                                            <button type="submit" class="text-sm text-[#D64545] hover:underline">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        {# Empty state: no banners exist yet, points back to admin.banner_new. #}
+                        <tr>
+                            <td colspan="7" class="px-6 py-8 text-center text-muted">No banners yet. <a href="{{ url_for('admin.banner_new') }}" class="text-primary hover:underline">Add your first banner</a>.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

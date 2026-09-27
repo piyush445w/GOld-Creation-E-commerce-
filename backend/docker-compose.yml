@@ -1,0 +1,42 @@
+﻿services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy   # Don't start web until MySQL passes its healthcheck.
+    env_file:
+      - .env                       # Load secrets (DB password, API keys) from a local .env file.
+    environment:
+      FLASK_ENV: production
+      DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/${MYSQL_DATABASE}
+    volumes:
+      - ./frontend/static:/app/frontend/static     # Serve updated static assets without rebuilding the image.
+    restart: unless-stopped              # Keep the container running if it crashes.
+    healthcheck:
+      # Hit the /health endpoint to confirm the app is serving traffic.
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5000/health\", timeout=5)'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-gold_creation_root}  # Default dev password if unset.
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-gold_creation}                  # Create this DB on first start.
+    volumes:
+      - db_data:/var/lib/mysql          # Persist data across container restarts.
+    restart: unless-stopped
+    healthcheck:
+      # Use mysqladmin ping to confirm MySQL is ready to accept connections.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
+    driver: local

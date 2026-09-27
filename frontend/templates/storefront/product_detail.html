@@ -1,0 +1,412 @@
+{# Product Detail (PDP) - the page that converts interest into a cart line.
+   Extends base.html and imports the `currency_price` macro from
+   storefront/_currency_macros.html so price blocks can offer a per-product
+   currency preview.
+
+   View variables supplied by the storefront blueprint's product_detail route:
+     product           - the Product row (name, description, base_price, category)
+     variants          - its ProductVariant rows, each flagged `in_cart`
+     media             - its ProductMedia rows (mixed images and videos)
+     reviews           - approved Review rows, used for the rating average
+     related_products  - same-category suggestions, or empty
+     in_wishlist       - whether the visitor already saved this product
+
+   Left column is the sticky buy box; right column is the media gallery. #}
+{% extends "base.html" %}
+{% from "storefront/_currency_macros.html" import currency_price %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block content %}
+{# Breadcrumb: Home > category > product. The category link uses the
+   relationship, so it only renders for a product that is categorised. #}
+<nav class="text-sm text-[#6B6B6B] py-4">
+    <div class="max-w-7xl mx-auto px-4">
+        <a href="{{ url_for('storefront.index') }}" class="hover:text-[#8B1E3F]">Home</a>
+        <span class="mx-2">/</span>
+        <a href="{{ url_for('storefront.category', slug=product.category.slug) }}" class="hover:text-[#8B1E3F]">{{ product.category.name }}</a>
+        <span class="mx-2">/</span>
+        <span class="text-[#1A1A1A]">{{ product.name }}</span>
+    </div>
+</nav>
+
+<div class="py-8">
+    <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+        {# ---- Buy box (sticky on large screens) ---- #}
+        <div class="lg:sticky lg:top-24">
+            <p class="text-sm uppercase tracking-wider text-[#6B6B6B] mb-2">Gold Creation</p>
+            <h1 class="font-serif text-3xl md:text-4xl mb-3">{{ product.name }}</h1>
+            {# Rating summary. The average is computed in-template from the review
+               rows; stars are floored so a 4.7 average shows 4 filled stars.
+               The whole block is omitted for a product with no reviews. #}
+            {% if reviews %}
+            {% set avg_rating = (reviews|sum(attribute='rating') / reviews|length) %}
+            <div class="flex items-center gap-2 mb-4">
+                <div class="flex gap-0.5 text-[#C9A227]">
+                    {% for i in range(1, 6) %}
+                    <i data-lucide="star" class="w-4 h-4 {% if i <= avg_rating|round(0, 'floor') %}fill-current{% else %}text-[#E5E2DD]{% endif %}"></i>
+                    {% endfor %}
+                </div>
+                {# Count is pluralised so a single review does not read "1 reviews". #}
+                <span class="text-sm text-[#6B6B6B]">{{ '%.1f'|format(avg_rating) }} &middot; {{ reviews|length }} review{{ 's' if reviews|length != 1 else '' }}</span>
+            </div>
+            {% endif %}
+            {# Base price via the macro, which pairs the formatted price with a
+               per-product currency preview dropdown. #}
+            <div class="mb-4">{{ currency_price(product.base_price, format_currency(product.base_price), size='lg') }}</div>
+            <p class="text-[#6B6B6B] mb-6">{{ product.description }}</p>
+
+            {# ---- Variant selector: the purchasable unit is the variant, not
+               the product, so a size/colour must be chosen before adding. ---- #}
+            {% if variants %}
+            <div class="mb-6">
+                <label class="text-sm font-medium mb-2 block">Variant</label>
+                <div class="flex flex-wrap gap-2">
+                    {% for variant in variants %}
+                    {# A variant already in the cart is disabled and dimmed, so the
+                       shopper is nudged toward a different size instead of adding
+                       a duplicate line. Size and colour are joined, then trimmed
+                       so a blank attribute does not leave stray slashes. #}
+                    <button type="button" class="variant-btn px-4 py-2 border rounded-full text-sm hover:border-[#8B1E3F] transition {% if variant.in_cart %}opacity-50 cursor-not-allowed{% endif %}" data-variant-id="{{ variant.id }}" {% if variant.in_cart %}disabled{% endif %}>
+                        {{ [variant.size, variant.color]|join(' / ')|trim(' / ') }}
+                        {% if variant.stock_quantity <= 0 %}<span class="text-red-500 ml-1">(Out of stock)</span>{% endif %}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# Everything from here to the trust badges is gated on the product
+               having at least one variant: with no purchasable variant there is
+               nothing to add, so only the "not available" notice is shown. #}
+            {% if variants %}
+            {# Quantity stepper. The initial max is the FIRST variant's stock; the
+               inline script in extra_js re-clamps it whenever the shopper picks a
+               different variant. #}
+            <div class="mb-6">
+                <label class="text-sm font-medium mb-2 block">Quantity</label>
+                <div class="flex items-center gap-4">
+                    <button type="button" id="qty-minus" class="w-10 h-10 border rounded-full flex items-center justify-center hover:border-[#8B1E3F] transition">
+                        <i data-lucide="minus" class="w-4 h-4"></i>
+                    </button>
+                    <input type="number" id="qty-input" value="1" min="1" max="{{ variants[0].stock_quantity if variants else 99 }}" class="w-16 text-center border rounded-lg py-2 text-sm">
+                    <button type="button" id="qty-plus" class="w-10 h-10 border rounded-full flex items-center justify-center hover:border-[#8B1E3F] transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            {# Add to Cart. The variant and quantity are carried in hidden inputs
+               because the visible controls are plain buttons with no form
+               semantics - JS copies the selected values into these fields.
+               Defaults to the first variant / qty 1 so the form still works
+               before JS runs. #}
+            <form action="{{ url_for('cart.add_to_cart') }}" method="POST" class="mb-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="product_variant_id" id="selected-variant-id" value="{{ variants[0].id if variants else '' }}"/>
+                <input type="hidden" name="quantity" id="selected-quantity" value="1"/>
+                <button type="submit" class="w-full bg-[#8B1E3F] text-white py-4 rounded-full font-medium hover:bg-[#8B1E3F]/90 transition">Add to Cart</button>
+            </form>
+
+            {# Buy Now: same payload, but checkout.buy_now short-circuits the cart
+               and goes straight to checkout for this single item. Kept as a
+               separate form so the two actions cannot be confused. #}
+            <form action="{{ url_for('checkout.buy_now') }}" method="POST" class="mb-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="product_variant_id" id="buy-now-variant-id" value="{{ variants[0].id if variants else '' }}"/>
+                <input type="hidden" name="quantity" id="buy-now-quantity" value="1"/>
+                <button type="submit" class="w-full bg-white text-[#8B1E3F] border border-[#8B1E3F] py-4 rounded-full font-medium hover:bg-[#8B1E3F]/5 transition">Buy Now</button>
+            </form>
+
+            {# Wishlist toggle. Posts the product id (not a variant) because a
+               product is saved whole; the button reflects current state so the
+               label and filled heart read as "already saved". #}
+            <form action="{{ url_for('wishlist.toggle_wishlist') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="product_id" value="{{ product.id }}"/>
+                <button type="submit" class="w-full border border-[#E5E2DD] py-4 rounded-full font-medium flex items-center justify-center gap-2 hover:border-[#8B1E3F] transition">
+                    <i data-lucide="heart" class="w-4 h-4 {% if in_wishlist %}fill-[#8B1E3F] text-[#8B1E3F]{% endif %}"></i>
+                    {{ 'Remove from Wishlist' if in_wishlist else 'Add to Wishlist' }}
+                </button>
+            </form>
+
+            {# Static trust badges shown on every purchasable product. #}
+            <p class="text-sm text-[#6B6B6B] mt-4 flex flex-wrap gap-x-4 gap-y-1">
+                <span class="inline-flex items-center gap-1"><i data-lucide="badge-check" class="w-4 h-4 text-[#C9A227]"></i>Silk Mark Assured</span>
+                <span class="inline-flex items-center gap-1"><i data-lucide="rotate-ccw" class="w-4 h-4 text-[#C9A227]"></i>7-Day Exchange</span>
+                <span class="inline-flex items-center gap-1"><i data-lucide="lock" class="w-4 h-4 text-[#C9A227]"></i>Secure Checkout</span>
+            </p>
+            {% else %}
+            {# No variants exist, so the product cannot be purchased. #}
+            <p class="text-sm text-[#6B6B6B]">This product is not available for purchase.</p>
+            {% endif %}
+
+            {# ---- Product information tabs: description vs shipping & care.
+               Panel switching is handled by main.js (.info-tab-btn). ---- #}
+            <div class="mt-8 border-t border-[#E5E2DD] pt-6" id="product-info-tabs">
+                {# Tab strip. The first tab is pre-styled as active. #}
+                <div class="flex gap-6 border-b border-[#E5E2DD] mb-4">
+                    <button type="button" class="info-tab-btn pb-3 text-sm font-medium border-b-2 border-[#8B1E3F] text-[#8B1E3F]" data-tab="description">Description</button>
+                    <button type="button" class="info-tab-btn pb-3 text-sm font-medium border-b-2 border-transparent text-[#6B6B6B] hover:text-[#1A1A1A]" data-tab="care">Shipping &amp; Care</button>
+                </div>
+                {# Active panel: the long-form product description. #}
+                <div class="info-tab-panel" data-tab-panel="description">
+                    <p class="text-[#6B6B6B] leading-relaxed">{{ product.description }}</p>
+                </div>
+                {# Hidden panel, revealed on tab switch. Care guidance is static
+                   copy in this version rather than per-product data. #}
+                <div class="info-tab-panel hidden" data-tab-panel="care">
+                    <ul class="text-[#6B6B6B] text-sm space-y-2 list-disc pl-5">
+                        <li>Dispatched within 24-48 hours across India; international diaspora delivery available worldwide.</li>
+                        <li>Dry clean only. Store folded in a muslin cloth away from direct sunlight to preserve zari work.</li>
+                        <li>7-day complimentary return and exchange window on unused, tagged pieces.</li>
+                        <li>Custom blouse stitching and alterations available on request &mdash; contact our stylists after checkout.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        {# ---- Media gallery. Driven by the `media` list, which mixes images and
+           videos; #product-media-gallery is the hook main.js binds its
+           thumbnail, arrow-key, swipe and prev/next handlers to. ---- #}
+        <div id="product-media-gallery">
+            {# Main media stage. The first media item is the initially visible
+               one; the others are swapped in by clicking a thumbnail. #}
+            <div class="aspect-square md:aspect-[4/5] rounded-2xl overflow-hidden bg-[#FAF9F7] relative mb-4">
+                {% if media %}
+                {% set active_media = media[0] %}
+                {# Branch on media_type so a mixed gallery needs no extra markup:
+                   images become <img>, videos become a <video> with a poster
+                   frame. preload="metadata" avoids downloading the whole file
+                   until the visitor actually plays it. #}
+                {% if active_media.media_type == 'image' %}
+                <img id="main-media-img" src="{{ active_media.media_url }}" alt="{{ product.name }}" class="w-full h-full object-contain">
+                {% elif active_media.media_type == 'video' %}
+                <video id="main-media-video" controls preload="metadata" poster="{{ active_media.thumbnail_url if active_media.thumbnail_url else active_media.media_url }}" class="w-full h-full object-contain">
+                    <source src="{{ active_media.media_url }}" type="{{ active_media.mime_type }}">
+                </video>
+                {% endif %}
+
+                {# Prev/next arrows. Only rendered when there is more than one
+                   asset, since they would be meaningless otherwise. #}
+                {% if media | length > 1 %}
+                <button class="media-prev absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-sm hover:bg-white transition">
+                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                </button>
+                <button class="media-next absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-sm hover:bg-white transition">
+                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                </button>
+                {% endif %}
+
+                {# Fullscreen/zoom affordance. #}
+                <button class="absolute top-3 right-3 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-sm hover:bg-white transition">
+                    <i data-lucide="maximize" class="w-4 h-4"></i>
+                </button>
+
+                {# "Video" badge, so the visitor knows the stage is not a photo
+                   and that there is a playable clip behind the poster. #}
+                {% if media | length > 1 and active_media.media_type == 'video' %}
+                <div class="absolute top-3 left-3 px-2 py-1 bg-black/50 text-white text-xs rounded-full uppercase tracking-wider">Video</div>
+                {% endif %}
+                {% else %}
+                {# No media at all: keep the stage sized so the layout does not
+                   collapse, and say so plainly. #}
+                <div class="w-full h-full flex items-center justify-center text-[#6B6B6B]">No media available</div>
+                {% endif %}
+            </div>
+
+            {# Thumbnail strip. Each button carries its index plus the data the
+               gallery script needs to rebuild the main stage client-side,
+               without another server round trip. #}
+            {% if media and media | length > 1 %}
+            <div class="flex gap-3 overflow-x-auto pb-2">
+                {% for m in media %}
+                <button class="media-thumb w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer border-2 border-transparent hover:border-[#8B1E3F] transition" 
+                        data-index="{{ loop.index0 }}" 
+                        data-media-type="{{ m.media_type }}"
+                        data-video-src="{{ m.media_url if m.media_type == 'video' else '' }}"
+                        data-poster="{{ m.thumbnail_url if m.media_type == 'video' and m.thumbnail_url else (m.media_url if m.media_type == 'video' else '') }}">
+                    {# Images show the asset directly; videos show their poster
+                       frame with a play badge, since a <video> here would start
+                       loading every clip on the page. #}
+                    {% if m.media_type == 'image' %}
+                    <img src="{{ m.media_url }}" alt="" class="w-full h-full object-cover" loading="lazy">
+                    {% else %}
+                    <div class="relative w-full h-full">
+                        <img src="{{ m.thumbnail_url if m.thumbnail_url else m.media_url }}" alt="" class="w-full h-full object-cover" loading="lazy">
+                        <div class="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <i data-lucide="play" class="w-6 h-6 text-white"></i>
+                        </div>
+                    </div>
+                    {% endif %}
+                </button>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{# ---- Reviews section. Omitted entirely for a product with no reviews, so a
+   new product does not show an empty heading. New submissions appear only after
+   moderation, which is why the list is not immediately updated by the POST. ---- #}
+{% if reviews %}
+<div class="py-12 border-t border-[#E5E2DD]">
+    <div class="max-w-7xl mx-auto px-4">
+        <h2 class="font-serif text-3xl mb-8">Reviews</h2>
+
+        {# Review form, only for signed-in shoppers. Anonymous visitors are not
+           offered the form at all. #}
+        {% if current_user.is_authenticated %}
+        <form method="POST" action="{{ url_for('storefront.submit_review', slug=product.slug) }}" class="border border-[#E5E2DD] rounded-2xl p-6 mb-8">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            {# Star picker. The buttons are visual only; JS writes the chosen
+               value into the hidden `rating` input, which is what actually gets
+               submitted. It starts at 0 so an untouched form is invalid. #}
+            <div class="mb-4">
+                <label class="text-sm font-medium mb-2 block">Rating</label>
+                <div class="flex gap-1" id="star-rating">
+                    {% for i in range(1, 6) %}
+                    <button type="button" class="star-btn text-[#E5E2DD] hover:text-[#C9A227] transition" data-rating="{{ i }}">
+                        <i data-lucide="star" class="w-6 h-6"></i>
+                    </button>
+                    {% endfor %}
+                    <input type="hidden" name="rating" id="rating-input" value="0"/>
+                </div>
+            </div>
+            {# Optional free-text comment. #}
+            <div class="mb-4">
+                <label class="text-sm font-medium mb-2 block">Review</label>
+                <textarea name="comment" rows="4" class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent" placeholder="Share your thoughts about this product..."></textarea>
+            </div>
+            <button type="submit" class="bg-[#8B1E3F] text-white px-6 py-3 rounded-full hover:bg-[#8B1E3F]/90 transition">Submit Review</button>
+        </form>
+        {% endif %}
+
+        {# Existing review list: avatar initial, author, date, star row and
+           comment. Deleted accounts degrade to "Anonymous" / "A" rather than
+           breaking the loop on a missing user. #}
+        <div class="space-y-6">
+            {% for review in reviews %}
+            <div class="flex gap-4">
+                <div class="w-10 h-10 bg-[#FAF9F7] rounded-full flex items-center justify-center font-medium flex-shrink-0">
+                    {{ review.user.name[0] if review.user else 'A' }}
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium">{{ review.user.name if review.user else 'Anonymous' }}</span>
+                        <span class="text-sm text-[#6B6B6B]">{{ review.created_at.strftime('%B %d, %Y') if review.created_at else '' }}</span>
+                    </div>
+                    {# Filled stars up to the review's rating, greyed after. #}
+                    <div class="flex gap-0.5 text-[#C9A227]">
+                        {% for i in range(1, 6) %}
+                        {% if i <= review.rating %}
+                        <i data-lucide="star" class="w-4 h-4 fill-current"></i>
+                        {% else %}
+                        <i data-lucide="star" class="w-4 h-4 text-[#E5E2DD]"></i>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <p class="mt-2 text-[#1A1A1A]">{{ review.comment }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ---- Cross-sell: "You May Also Cherish". Rendered only when the view supplied
+   related products, so the whole band disappears for a lonely product. ---- #}
+{% if related_products %}
+<div class="py-12 border-t border-[#E5E2DD] bg-[#FAF9F7]">
+    <div class="max-w-7xl mx-auto px-4">
+        <h2 class="font-serif text-3xl mb-8 text-[#1A1A1A]">You May Also Cherish</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {% for rp in related_products %}
+            {# Compact product card: image, name and price, linking to that
+               product's own PDP. #}
+            <div class="group">
+                <a href="{{ url_for('storefront.product_detail', slug=rp.slug) }}" class="block">
+                    {# The card shows the first image-ordered asset. A video-only
+                       product falls back to a "No Image" placeholder, because a
+                       <video> in a grid would autoplay-heavy the listing. #}
+                    <div class="aspect-[3/4] rounded-2xl overflow-hidden bg-white relative border border-[#E5E2DD] group-hover:shadow-warm transition">
+                        {% set rp_image = rp.media.all()|sort(attribute='display_order')|first %}{% if rp_image and rp_image.media_type == 'image' %}
+                        <img src="{{ rp_image.media_url }}" alt="{{ rp.name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                        {% else %}
+                        <div class="w-full h-full flex items-center justify-center text-[#6B6B6B] text-sm">No Image</div>
+                        {% endif %}
+                    </div>
+                    <div class="p-4 pb-0">
+                        <h3 class="font-medium text-[#1A1A1A] truncate">{{ rp.name }}</h3>
+                    </div>
+                </a>
+                {# Price via the same macro, so cross-sell cards offer the same
+                   currency preview as the main price. #}
+                <div class="px-4">
+                    {{ currency_price(rp.base_price, format_currency(rp.base_price)) }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% block extra_js %}
+<script>
+{# ---- Variant selection. The visible variant buttons are not real form
+   controls, so this script mirrors the selection into the hidden inputs of the
+   Add to Cart and Buy Now forms. main.js owns the quantity stepper itself. ---- #}
+document.querySelectorAll('.variant-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        {# Variants already in the cart are server-rendered as disabled, and a
+           programmatic click would otherwise still fire. #}
+        if (btn.disabled) return;
+        {# Reset every button to the unselected style, then mark this one. #}
+        document.querySelectorAll('.variant-btn').forEach(b => {
+            b.classList.remove('border-[#8B1E3F]', 'text-[#8B1E3F]');
+            b.classList.add('border', 'text-[#6B6B6B]');
+        });
+        btn.classList.remove('border', 'text-[#6B6B6B]');
+        btn.classList.add('border-[#8B1E3F]', 'text-[#8B1E3F]');
+        const variantId = btn.getAttribute('data-variant-id');
+        {# Copy the chosen variant into BOTH forms so Add to Cart and Buy Now
+           always agree on what is selected. #}
+        const selectedVariantInput = document.getElementById('selected-variant-id');
+        const buyNowVariantInput = document.getElementById('buy-now-variant-id');
+        if (selectedVariantInput) selectedVariantInput.value = variantId;
+        if (buyNowVariantInput) buyNowVariantInput.value = variantId;
+        
+        {# Re-clamp quantity against the newly chosen variant's stock. The
+           variants are serialised to JSON by the view so stock is available
+           without another request. #}
+        const variant = {{ variants | tojson }}.find(v => v.id == variantId);
+        if (variant) {
+            const qtyInput = document.getElementById('qty-input');
+            const buyNowQtyInput = document.getElementById('buy-now-quantity');
+            if (qtyInput) qtyInput.max = variant.stock_quantity;
+            if (buyNowQtyInput) buyNowQtyInput.max = variant.stock_quantity;
+            {# If the shopper had already raised the quantity above the new
+               variant's stock, pull it back down so the form cannot submit an
+               unfulfillable line. #}
+            if (qtyInput && parseInt(qtyInput.value) > variant.stock_quantity) {
+                qtyInput.value = variant.stock_quantity;
+            }
+            if (buyNowQtyInput && parseInt(buyNowQtyInput.value) > variant.stock_quantity) {
+                buyNowQtyInput.value = variant.stock_quantity;
+            }
+        }
+    });
+});
+
+{# Pre-select the first selectable variant on load, so the forms carry a valid
+   id before the shopper touches anything. Skipped when the first variant is
+   already in the cart and therefore disabled. #}
+document.addEventListener('DOMContentLoaded', () => {
+    const firstBtn = document.querySelector('.variant-btn');
+    if (firstBtn && !firstBtn.disabled) {
+        firstBtn.click();
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

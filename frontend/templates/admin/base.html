@@ -1,0 +1,180 @@
+{# Admin base template: shared layout for every admin back-office page. #}
+{# Extends nothing; child templates use {% extends "admin/base.html" %} and fill blocks: title, page_title, page_title_mobile, content, extra_head, extra_js. #}
+{# Consumes current_user (auth state), request.endpoint (sidebar active-state), csrf_token(), and flashed messages from the view. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin - Gold Creation{% endblock %}</title>
+    {# Extra head hook: child templates can inject additional <head> resources (e.g. page-specific CSS) into this block. #}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8B1E3F',
+                        secondary: '#C9A227',
+                        muted: '#6B6B6B',
+                        border: '#E5E2DD',
+                        section: '#FAF9F7',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="font-sans bg-white text-[#1A1A1A] antialiased">
+    {# Reusable Jinja macro: renders a hidden CSRF token field for every admin form. #}
+    {% macro csrf_input() %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% endmacro %}
+
+    {# Toast/flash area: shows Flask flashed messages (success/danger/warning) as fixed top-right popups. #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="fixed top-4 right-4 z-50 space-y-3">
+                {% for category, message in messages %}
+                    <div class="max-w-sm px-4 py-3 rounded-xl border shadow-lg
+                        {% if category == 'success' %}bg-green-50 border-success text-green-800
+                        {% elif category == 'danger' %}bg-red-50 border-error text-red-800
+                        {% elif category == 'warning' %}bg-yellow-50 border-secondary text-yellow-800
+                        {% else %}bg-gray-50 border-border text-[#1A1A1A]{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="flex min-h-screen">
+        {# Admin sidebar: fixed on desktop, slide-in on mobile. Active link is highlighted by matching request.endpoint. #}
+        <aside id="sidebar" class="hidden fixed inset-y-0 left-0 z-50 w-64 bg-section border-r border-border md:flex md:flex-col md:relative md:translate-x-0 transition-transform duration-200">
+            <div class="px-6 py-6 border-b border-border">
+                <h2 class="font-serif text-xl text-[#1A1A1A]">Admin</h2>
+            </div>
+            {# Sidebar navigation: one link per admin section, each highlighting when request.endpoint matches. #}
+            <nav class="flex-1 py-4 space-y-1">
+                <a href="{{ url_for('admin.dashboard') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint == 'admin.dashboard' %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                    Dashboard
+                </a>
+                <a href="{{ url_for('admin.products_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint in ['admin.products_list', 'admin.product_new', 'admin.product_edit'] %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="package" class="w-4 h-4"></i>
+                    Products
+                </a>
+                <a href="{{ url_for('admin.categories_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint in ['admin.categories_list', 'admin.category_new', 'admin.category_edit'] %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="folder-tree" class="w-4 h-4"></i>
+                    Categories
+                </a>
+                <a href="{{ url_for('admin.orders_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint in ['admin.orders_list', 'admin.order_detail'] %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                    Orders
+                </a>
+                <a href="{{ url_for('admin.coupons_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint in ['admin.coupons_list', 'admin.coupon_new', 'admin.coupon_edit'] %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="ticket" class="w-4 h-4"></i>
+                    Coupons
+                </a>
+                <a href="{{ url_for('admin.pages_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint in ['admin.pages_list', 'admin.page_new', 'admin.page_edit'] %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    Pages
+                </a>
+                <a href="{{ url_for('admin.settings_view') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint in ['admin.settings_view'] %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    Settings
+                </a>
+                <a href="{{ url_for('admin.banners_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint in ['admin.banners_list', 'admin.banner_new', 'admin.banner_edit'] %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="image" class="w-4 h-4"></i>
+                    Banners
+                </a>
+                <a href="{{ url_for('admin.navigation_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint == 'admin.navigation_list' %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="navigation" class="w-4 h-4"></i>
+                    Navigation
+                </a>
+                <a href="{{ url_for('admin.customers_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint == 'admin.customers_list' %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                    Customers
+                </a>
+                <a href="{{ url_for('admin.reviews_list') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint == 'admin.reviews_list' %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="star" class="w-4 h-4"></i>
+                    Reviews
+                </a>
+                <a href="{{ url_for('admin.media_manager') }}" class="flex items-center gap-3 px-6 py-3 text-sm text-muted hover:text-primary hover:bg-white transition-colors {% if request.endpoint == 'admin.media_manager' %}text-primary bg-white border-r-2 border-primary{% endif %}">
+                    <i data-lucide="images" class="w-4 h-4"></i>
+                    Media
+                </a>
+            </nav>
+<div class="px-6 py-4 border-t border-border">
+                {# Sidebar footer: shows the logged-in admin's name/email and a logout form posting to auth.admin_logout. #}
+                {% if g.get('admin_user') %}
+                    <p class="text-sm font-medium text-[#1A1A1A]">{{ g.admin_user.email or g.admin_user.name }}</p>
+                    <form method="POST" action="{{ url_for('auth.admin_logout') }}" class="inline">
+                        {{ csrf_input() }}
+                        <button type="submit" class="text-sm text-muted hover:text-[#D64545] transition-colors">Logout</button>
+                    </form>
+                {% endif %}
+            </div>
+        </aside>
+
+        {# Main content column: top bar (mobile menu button + page title) and the {% block content %} rendered by child templates. #}
+        <div class="flex-1 md:ml-64">
+            <header class="sticky top-0 z-40 h-16 bg-white border-b border-border flex items-center justify-between px-4 md:px-8">
+                <button id="mobile-menu-btn" class="md:hidden p-2 -ml-2 text-muted hover:text-[#1A1A1A]">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+                <div class="hidden md:block">
+                    <h1 class="font-semibold text-lg">{% block page_title %}{% endblock %}</h1>
+                </div>
+                <div class="md:hidden">
+                    <h1 class="font-semibold text-sm">{% block page_title_mobile %}{% endblock %}</h1>
+                </div>
+            </header>
+
+            <main class="p-4 md:p-8">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <div id="mobile-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+
+    {# Shared client-side script: initializes Lucide icons and wires up the mobile sidebar toggle. #}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            lucide.createIcons();
+
+            const menuBtn = document.getElementById("mobile-menu-btn");
+            const sidebar = document.getElementById("sidebar");
+            const overlay = document.getElementById("mobile-overlay");
+
+            if (menuBtn && sidebar && overlay) {
+                menuBtn.addEventListener("click", function() {
+                    sidebar.classList.toggle("hidden");
+                    sidebar.classList.toggle("flex");
+                    overlay.classList.toggle("hidden");
+                });
+
+                overlay.addEventListener("click", function() {
+                    sidebar.classList.add("hidden");
+                    sidebar.classList.remove("flex");
+                    overlay.classList.add("hidden");
+                });
+            }
+        });
+    </script>
+    {# Extra JS hook: child templates append page-specific JavaScript (e.g. media_manager.html drag-drop). #}
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+
+
+

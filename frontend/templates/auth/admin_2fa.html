@@ -1,0 +1,35 @@
+{# Admin Two-Factor Authentication page. Extends admin/base.html. Consumes: setup_mode, verify_mode, qr_b64, csrf_input(). Two-step TOTP flow: admin has already passed password step. In setup_mode: shows QR code, POSTs to auth.admin_2fa_setup to enable 2FA. In verify_mode: accepts 6-digit code, POSTs to auth.admin_2fa_verify. Back link to storefront.index. #}
+{% extends "admin/base.html" %}
+{% block title %}Two-Factor Authentication{% endblock %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-section">
+    <div class="bg-white p-8 rounded-2xl border border-border w-full max-w-md">
+{% if setup_mode %}
+            <h1 class="font-serif text-2xl text-center text-[#1A1A1A] mb-2">Enable Two-Factor Authentication</h1>
+            <p class="text-center text-muted mb-6">Scan the QR code with your authenticator app</p>
+            <div class="flex justify-center mb-6">
+                <img src="data:image/png;base64,{{ qr_b64 }}" alt="2FA QR Code" class="w-48 h-48 rounded-xl border border-border">
+            </div>
+            {# Setup form: POST to auth.admin_2fa_setup. CSRF via csrf_input(). Submit: Enable 2FA. #}
+            <form method="POST" action="{{ url_for('auth.admin_2fa_setup') }}" class="space-y-4">
+                {{ csrf_input() }}
+                <button type="submit" class="w-full bg-primary text-white py-3 rounded-full font-medium hover:bg-opacity-90 transition-colors">Enable 2FA</button>
+            </form>
+        {% elif verify_mode %}
+            <h1 class="font-serif text-2xl text-center text-[#1A1A1A] mb-2">Two-Factor Authentication</h1>
+            <p class="text-center text-muted mb-6">Enter the verification code from your authenticator app</p>
+            {# Verify form: POST to auth.admin_2fa_verify. CSRF via csrf_input(). Field: token (6-digit TOTP code). Submit: Verify. #}
+            <form method="POST" action="{{ url_for('auth.admin_2fa_verify') }}" class="space-y-4">
+                {{ csrf_input() }}
+                <div>
+                    <input type="text" name="token" placeholder="6-digit code" maxlength="6" required class="w-full px-4 py-3 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-center tracking-widest text-lg">
+                </div>
+                <button type="submit" class="w-full bg-primary text-white py-3 rounded-full font-medium hover:bg-opacity-90 transition-colors">Verify</button>
+            </form>
+        {% endif %}
+        <div class="mt-6 text-center">
+            <a href="{{ url_for('storefront.index') }}" class="text-sm text-muted hover:text-primary transition-colors">&larr; Back to storefront</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

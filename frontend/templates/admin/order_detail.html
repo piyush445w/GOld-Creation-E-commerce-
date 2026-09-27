@@ -1,0 +1,123 @@
+{% extends "admin/base.html" %}
+{% block title %}Order #{{ order.id }}{% endblock %}
+{% block page_title %}Order #{{ order.id }}{% endblock %}
+{% block page_title_mobile %}Order #{{ order.id }}{% endblock %}
+{# Admin order detail page. Extends admin/base.html. Renders full order view in the admin back-office.
+   Consumes: order (Order object with id, status, placed_at, user, shipping_address, payment_method, items).
+   Endpoints: admin.orders_list (back link), admin.order_update_status (status update POST). #}
+{% block content %}
+<div class="space-y-6">
+    {# Back link to admin.orders_list #}
+    <a href="{{ url_for('admin.orders_list') }}" class="inline-flex items-center gap-2 text-sm text-muted hover:text-primary transition-colors">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+        Back to Orders
+    </a>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="space-y-6">
+            {# Order header: order.id, status badge (pending/paid/shipped/delivered/cancelled/refunded), placed_at timestamp #}
+            <div class="bg-white rounded-2xl border border-border p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-lg">Order #{{ order.id }}</h3>
+                    <span class="px-2 py-1 rounded-full text-xs font-medium
+                        {% if order.status == 'pending' %}bg-yellow-100 text-yellow-800
+                        {% elif order.status == 'paid' %}bg-blue-100 text-blue-800
+                        {% elif order.status == 'shipped' %}bg-purple-100 text-purple-800
+                        {% elif order.status == 'delivered' %}bg-green-100 text-green-800
+                        {% elif order.status in ['cancelled', 'refunded'] %}bg-red-100 text-red-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ order.status|title }}
+                    </span>
+                </div>
+                <p class="text-sm text-muted mb-4">{{ order.placed_at.strftime('%B %d, %Y at %I:%M %p') if order.placed_at else 'N/A' }}</p>
+            </div>
+
+            {# Customer information block: user.name, user.email, user.phone #}
+            <div class="bg-white rounded-2xl border border-border p-6">
+                <h4 class="font-semibold mb-4">Customer Information</h4>
+                <div class="space-y-2 text-sm">
+                    <p class="text-[#1A1A1A]">{{ order.user.name if order.user else 'N/A' }}</p>
+                    <p class="text-muted">{{ order.user.email if order.user else 'N/A' }}</p>
+                    <p class="text-muted">{{ order.user.phone if order.user else 'N/A' }}</p>
+                </div>
+            </div>
+
+            {# Shipping address block: line1, line2, city, state, postal_code, country #}
+            <div class="bg-white rounded-2xl border border-border p-6">
+                <h4 class="font-semibold mb-4">Shipping Address</h4>
+                <div class="text-sm text-muted space-y-1">
+                    <p>{{ order.shipping_address.line1 or 'N/A' }}</p>
+                    {% if order.shipping_address.line2 %}
+                        <p>{{ order.shipping_address.line2 }}</p>
+                    {% endif %}
+                    <p>{{ order.shipping_address.city or '' }}{% if order.shipping_address.city %}, {% endif %}{{ order.shipping_address.state or '' }} {{ order.shipping_address.postal_code or '' }}</p>
+                    <p>{{ order.shipping_address.country or '' }}</p>
+                </div>
+            </div>
+
+            {# Payment method display: order.payment_method #}
+            <div class="bg-white rounded-2xl border border-border p-6">
+                <h4 class="font-semibold mb-4">Payment Method</h4>
+                <p class="text-sm text-muted">{{ order.payment_method or 'N/A' }}</p>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+            {# Order items table: columns Product (product_name_snapshot), Variant (size/color), Price (unit_price_snapshot), Qty, Subtotal #}
+            <div class="bg-white rounded-2xl border border-border overflow-hidden">
+                <div class="px-6 py-4 border-b border-border">
+                    <h3 class="font-semibold text-lg">Order Items</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-section">
+                            <tr>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Product</th>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Variant</th>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Price</th>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Qty</th>
+                                <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border-custom">
+                            {# Iterate order.items; each row shows product_name_snapshot, variant.size/color, unit_price_snapshot, quantity, subtotal #}
+                            {% set item_list = order.items.all() if order.items is not none else [] %} {% if item_list %}
+                                {% for item in item_list %}
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-6 py-4 text-sm">{{ item.product_name_snapshot or 'Product' }}</td>
+                                        <td class="px-6 py-4 text-sm text-muted">{{ item.variant.size ~ ' / ' ~ item.variant.color if item.variant else '-' }}</td>
+                                        <td class="px-6 py-4 text-sm">{{ item.unit_price_snapshot }}</td>
+                                        <td class="px-6 py-4 text-sm">{{ item.quantity }}</td>
+                                        <td class="px-6 py-4 text-sm font-medium">{{ item.subtotal }}</td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="px-6 py-8 text-center text-muted">No items in this order.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {# Status update form: POST to admin.order_update_status with status select (pending/paid/shipped/delivered/cancelled/refunded) #}
+            <div class="bg-white rounded-2xl border border-border p-6">
+                <h3 class="font-semibold text-lg mb-4">Update Status</h3>
+                <form method="POST" action="{{ url_for('admin.order_update_status', id=order.id) }}" class="flex items-end gap-4">
+                    {{ csrf_input() }}
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-muted mb-2">Status</label>
+                        <select name="status" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                            {% for status in ['pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded'] %}
+                                <option value="{{ status }}" {% if order.status == status %}selected{% endif %}>{{ status|title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="bg-primary text-white px-6 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors">Update</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{# Reusable price-formatting macro for storefront templates.
+# Renders a formatted INR price with a currency selector dropdown.
+# Consumes: all_currencies (list of currency objects with .code), current_currency (selected code).
+# Imported by: product cards, product detail, cart, checkout, order summary templates. #}
+{% macro currency_price(amount_inr, formatted_text, size='sm') %}
+{# amount_inr: numeric INR value for data attribute; formatted_text: pre-formatted display string (e.g. "Rs.1,299"); size: 'sm' or 'lg' for text scaling #}
+<span class="inline-flex items-center gap-1.5 flex-wrap">
+    <span class="gc-price {% if size == 'lg' %}text-2xl{% else %}font-semibold{% endif %} text-[#8B1E3F]" data-base-price-inr="{{ amount_inr }}">{{ formatted_text }}</span>
+    <select class="gc-price-currency-select text-xs border border-[#E5E2DD] rounded px-1 py-0.5 bg-white text-[#6B6B6B]" aria-label="Change currency for this product" onclick="event.stopPropagation()">
+        {% for c in all_currencies %}
+        <option value="{{ c.code }}" {% if current_currency == c.code %}selected{% endif %}>{{ c.code }}</option>
+        {% endfor %}
+    </select>
+</span>
+{% endmacro %}

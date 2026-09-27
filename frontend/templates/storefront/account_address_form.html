@@ -1,0 +1,96 @@
+?{# Address create/edit form - one template serving both operations.
+   Extends base.html. The storefront blueprint renders it from the
+   account_address_new and account_address_edit views.
+
+   The `address` view variable is the discriminator: truthy on edit (pre-fills
+   every field and switches the form target and button text), absent/None on
+   create (blank values and the "new" endpoint). This keeps one template instead
+   of two near-identical ones.
+
+   Address fields map directly onto the Address model columns: label, line1,
+   line2, city, state, country, postal_code, is_default. #}
+{% extends "base.html" %}
+{% block title %}{% if address %}Edit Address{% else %}Add Address{% endif %}{% endblock %}
+{% block content %}
+{# Breadcrumb: Home > My Account > Addresses > Add/Edit. #}
+<nav class="text-sm text-[#6B6B6B] py-4">
+    <div class="max-w-7xl mx-auto px-4">
+        <a href="{{ url_for('storefront.index') }}" class="hover:text-[#8B1E3F]">Home</a>
+        <span class="mx-2">/</span>
+        <a href="{{ url_for('storefront.account') }}" class="hover:text-[#8B1E3F]">My Account</a>
+        <span class="mx-2">/</span>
+        <a href="{{ url_for('storefront.account_addresses') }}" class="hover:text-[#8B1E3F]">Addresses</a>
+        <span class="mx-2">/</span>
+        <span class="text-[#1A1A1A]">{% if address %}Edit Address{% else %}Add Address{% endif %}</span>
+    </div>
+</nav>
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <h1 class="font-serif text-3xl mb-8">{% if address %}Edit Address{% else %}Add New Address{% endif %}</h1>
+
+    {# Single POST form. On edit it targets the edit endpoint carrying the
+       address id; on create it targets the new endpoint. The view is expected to
+       re-render this template with its error messages on validation failure. #}
+    <form method="POST" action="{% if address %}{{ url_for('storefront.account_address_edit', id=address.id) }}{% else %}{{ url_for('storefront.account_address_new') }}{% endif %}" class="max-w-2xl">
+        {# CSRF token for every state-changing POST in this project. #}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="border border-[#E5E2DD] rounded-2xl p-6 space-y-4">
+            {# Nickname for the address ("Home", "Work") so the shopper can tell
+               saved addresses apart at checkout. Required. #}
+            <div>
+                <label class="text-sm font-medium mb-1 block">Label</label>
+                <input type="text" name="label" value="{{ address.label if address else '' }}" placeholder="e.g. Home, Work" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+            </div>
+            {# Primary street line. Required. #}
+            <div>
+                <label class="text-sm font-medium mb-1 block">Address Line 1</label>
+                <input type="text" name="line1" value="{{ address.line1 if address else '' }}" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+            </div>
+            {# Optional secondary line (flat, suite, landmark). Not required, so
+               it renders with no `required` attribute. #}
+            <div>
+                <label class="text-sm font-medium mb-1 block">Address Line 2</label>
+                <input type="text" name="line2" value="{{ address.line2 if address else '' }}" class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+            </div>
+            {# City and state share a row on wider screens. #}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="text-sm font-medium mb-1 block">City</label>
+                    <input type="text" name="city" value="{{ address.city if address else '' }}" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                </div>
+                <div>
+                    <label class="text-sm font-medium mb-1 block">State</label>
+                    <input type="text" name="state" value="{{ address.state if address else '' }}" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                </div>
+            </div>
+            {# Country and postal code share a row. Country is a free-text field
+               rather than a country picker in this version. #}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="text-sm font-medium mb-1 block">Country</label>
+                    <input type="text" name="country" value="{{ address.country if address else '' }}" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                </div>
+                <div>
+                    <label class="text-sm font-medium mb-1 block">Postal Code</label>
+                    <input type="text" name="postal_code" value="{{ address.postal_code if address else '' }}" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+                </div>
+            </div>
+            {# Default flag. Because an unchecked checkbox submits nothing, the
+               view treats a missing is_default as False; `checked` is
+               pre-applied only when editing an already-default address. #}
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="is_default" id="is_default" value="y" {% if address and address.is_default %}checked{% endif %} class="rounded border-[#E5E2DD] accent-[#8B1E3F]">
+                <label for="is_default" class="text-sm text-[#6B6B6B]">Set as default address</label>
+            </div>
+        </div>
+        {# Submit (label reflects add vs update) and a cancel link back to the
+           address list, which discards the form without a round trip. #}
+        <div class="flex gap-4 mt-6">
+            <button type="submit" class="bg-[#8B1E3F] text-white px-8 py-3 rounded-full hover:bg-[#8B1E3F]/90 transition">
+                {% if address %}Update Address{% else %}Save Address{% endif %}
+            </button>
+            <a href="{{ url_for('storefront.account_addresses') }}" class="px-8 py-3 border border-[#E5E2DD] rounded-full hover:bg-[#FAF9F7] transition text-sm">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

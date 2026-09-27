@@ -1,0 +1,67 @@
+{# Admin customers list: renders paginated customer table. Extends admin/base.html. Consumes: customers (list of User), pagination (Pagination). Links to admin.customer_detail. #}
+{% extends "admin/base.html" %}
+{% block title %}Customers{% endblock %}
+{% block page_title %}Customers{% endblock %}
+{% block page_title_mobile %}Customers{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page title #}
+    <h1 class="font-serif text-2xl text-[#1A1A1A]">Customers</h1>
+
+    {# Customers table card #}
+    <div class="bg-white rounded-2xl border border-border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-section">
+                    <tr>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Name</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Email</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Phone</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Country</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Currency</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Joined</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-custom">
+                    {% if customers %}
+                        {% for customer in customers %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium">{{ customer.name or 'N/A' }}</td>
+                                <td class="px-6 py-4 text-sm">{{ customer.email }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ customer.phone or '-' }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ customer.country or '-' }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ customer.preferred_currency or '-' }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ customer.created_at.strftime('%b %d, %Y') if customer.created_at else 'N/A' }}</td>
+                                <td class="px-6 py-4">
+                                    {# View action -> admin.customer_detail #}
+                                    <a href="{{ url_for('admin.customer_detail', id=customer.id) }}" class="text-sm text-primary hover:underline">View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        {# Empty state #}
+                        <tr>
+                            <td colspan="7" class="px-6 py-8 text-center text-muted">No customers yet.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {# Pagination controls #}
+        {% if pagination and pagination.pages > 1 %}
+            <div class="px-6 py-4 border-t border-border flex items-center justify-center gap-2">
+                {% if pagination.has_prev %}
+                    <a href="{{ url_for('admin.customers_list', page=pagination.page - 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Previous</a>
+                {% endif %}
+                {% for page_num in range(1, pagination.pages + 1) %}
+                    <a href="{{ url_for('admin.customers_list', page=page_num) }}" class="px-3 py-1 rounded-lg text-sm {% if page_num == pagination.page %}bg-primary text-white{% else %}border border-border hover:bg-section transition-colors{% endif %}">{{ page_num }}</a>
+                {% endfor %}
+                {% if pagination.has_next %}
+                    <a href="{{ url_for('admin.customers_list', page=pagination.page + 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Next</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

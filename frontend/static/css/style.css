@@ -1,0 +1,72 @@
+/*
+ * style.css — custom Tailwind stylesheet for Gold Creation.
+ * Imports the Tailwind base, components and utilities layers, then
+ * extends them with project-specific typography overrides for the .prose
+ * (rich-text) content used in product descriptions, blog posts and CMS
+ * pages. Tailwind utilities remain available across every template.
+ */
+/* Tailwind layers: base resets, components, then utility classes. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Rich-text container (.prose) — full-width so content is not constrained by the CMS default. */
+.prose {
+    max-width: none;
+}
+/* Editorial headings (h2/h3) — Playfair Display serif for a crafted, ethnic-wear feel. */
+.prose h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    margin: 1.5rem 0 1rem;
+}
+.prose h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.25rem;
+    margin: 1.25rem 0 0.75rem;
+}
+/* Paragraph flow — comfortable line height and dark body text. */
+.prose p {
+    margin-bottom: 1rem;
+    line-height: 1.7;
+    color: #1A1A1A;
+}
+/* List styling — indented bullets/numbers for readability in long descriptions. */
+.prose ul {
+    list-style-type: disc;
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+.prose ol {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+/* Media inside prose — images scale to container with rounded corners and breathing room. */
+.prose img {
+    max-width: 100%;
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+}
+/* Link color — brand maroon (#8B1E3F) with underline for prose links. */
+.prose a {
+    color: #8B1E3F;
+    text-decoration: underline;
+}
+/* Pull quote styling — gold left border with muted italic body. */
+.prose blockquote {
+    border-left: 4px solid #C9A227;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: #6B6B6B;
+    font-style: italic;
+}
+/* Strong/bold text — brand-maroon emphasis without default weight jump. */
+.prose strong {
+    color: #1A1A1A;
+    font-weight: 600;
+}
+/* Italic/emphasis — standard italic for inline emphasis. */
+.prose em {
+    font-style: italic;
+}

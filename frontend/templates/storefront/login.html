@@ -1,0 +1,69 @@
+{# Renders the Login page for storefront customers. Extends base.html. Consumes: csrf_token(). Authenticates customer session. Separate from admin login at /auth/admin/login (linked at bottom). #}
+
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-12 p-8 border border-[#E5E2DD] rounded-2xl">
+    <h2 class="font-serif text-2xl text-center mb-6">Welcome Back</h2>
+<form method="POST" class="space-y-4">
+
+        {# POST to auth.login. Fields: csrf_token (hidden), email (required), password (required), remember_me (checkbox). Submit: Login. #}
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <div>
+
+            <label class="text-sm font-medium mb-1 block">Email</label>
+
+            <input type="email" name="email" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+
+        </div>
+
+        <div>
+
+            <label class="text-sm font-medium mb-1 block">Password</label>
+
+            <input type="password" name="password" required class="w-full px-4 py-3 border border-[#E5E2DD] rounded-xl focus:ring-2 focus:ring-[#8B1E3F] focus:border-transparent">
+
+        </div>
+
+        <div class="flex items-center justify-between">
+
+            <label class="flex items-center gap-2 text-sm text-[#6B6B6B]">
+
+                <input type="checkbox" name="remember_me" class="rounded border-[#E5E2DD]">
+
+                Remember me
+
+            </label>
+
+            {# Link to auth.forgot_password for password reset flow. #}
+
+            <a href="{{ url_for('auth.forgot_password') }}" class="text-sm text-[#8B1E3F] hover:underline">Forgot password?</a>
+
+        </div>
+
+        <button type="submit" class="w-full bg-[#8B1E3F] text-white py-3 rounded-full hover:bg-[#8B1E3F]/90 transition">Login</button>
+
+    </form>
+
+    <p class="text-center text-sm text-[#6B6B6B] mt-4">
+
+        {# Link to auth.signup for new customers. #}
+
+        Don't have an account? <a href="{{ url_for('auth.signup') }}" class="text-[#8B1E3F] hover:underline">Sign up</a>
+
+    </p>
+
+    <div class="text-center mt-6">
+
+        {# Link to auth.admin_login for admin access (separate from customer login). #}
+
+        <a href="{{ url_for('auth.admin_login') }}" class="text-xs text-[#6B6B6B] opacity-50 hover:opacity-100 transition">Admin Login</a>
+
+    </div>
+</div>
+{% endblock %}
+

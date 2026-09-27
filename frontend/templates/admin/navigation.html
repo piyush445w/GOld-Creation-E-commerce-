@@ -1,0 +1,163 @@
+{% extends "admin/base.html" %}
+{% block title %}Navigation Menu{% endblock %}
+{% block page_title %}Navigation Menu{% endblock %}
+{% block page_title_mobile %}Navigation{% endblock %}
+{# Admin navigation menu management page. Extends admin/base.html. Renders the Navigation Menu in the admin back-office.
+   Consumes: nav_items (list of NavigationItem objects with id, label, target_url_or_page_slug, parent, is_active, display_order).
+   Endpoints: admin.navigation_save (create/update/reorder POST), admin.navigation_delete (delete POST).
+   Features: drag-and-drop reordering via JavaScript, nested menu tree via parent_id. #}
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">Navigation Menu</h1>
+        {# Save Order button: triggers JS to collect sorted row IDs and submit navigation-form to admin.navigation_save #}
+        <button type="button" id="save-order-btn" class="inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            Save Order
+        </button>
+    </div>
+
+    {# Main navigation form: wraps sortable table and hidden ids input; POSTs to admin.navigation_save on reorder #}
+    <form id="navigation-form" method="POST" action="{{ url_for('admin.navigation_save') }}">
+        {{ csrf_input() }}
+        <div class="bg-white rounded-2xl border border-border overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-section">
+                        <tr>
+                            <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3 w-12"></th>
+                            <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Label</th>
+                            <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Target</th>
+                            <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Parent</th>
+                            <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Active</th>
+                            <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    {# Sortable tbody: each tr has draggable="true" and data-id; grip icon for drag handle;
+                       columns: Label, Target, Parent (item.parent.label), Active badge, Delete form #}
+                    <tbody id="navigation-sortable" class="divide-y divide-border-custom">
+                        {% if nav_items %}
+                            {% for item in nav_items %}
+                                <tr draggable="true" data-id="{{ item.id }}" class="hover:bg-gray-50">
+                                    <td class="px-6 py-4">
+                                        <i data-lucide="grip-vertical" class="w-4 h-4 text-muted cursor-move"></i>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm font-medium">{{ item.label }}</td>
+                                    <td class="px-6 py-4 text-sm text-muted">{{ item.target_url_or_page_slug or '-' }}</td>
+                                    <td class="px-6 py-4 text-sm text-muted">{{ item.parent.label if item.parent else '-' }}</td>
+                                    <td class="px-6 py-4">
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium {% if item.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                            {{ 'Active' if item.is_active else 'Inactive' }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <button type="button" data-id="{{ item.id }}" class="text-sm text-[#D64545] hover:underline btn-delete-nav">Delete</button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="px-6 py-8 text-center text-muted">No navigation items yet.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {# Hidden input to hold comma-separated ordered IDs on reorder submit #}
+        <input type="hidden" name="ids" id="nav-order-input" value="">
+    </form>
+
+    {# Add Navigation Item form: POST to admin.navigation_save with fields label, target_url_or_page_slug,
+       parent_id (select from nav_items), display_order, is_active checkbox #}
+    <div class="bg-white rounded-2xl border border-border p-6">
+        <h3 class="font-semibold text-lg mb-4">Add Navigation Item</h3>
+        <form method="POST" action="{{ url_for('admin.navigation_save') }}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {{ csrf_input() }}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Label</label>
+                <input type="text" name="label" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Target URL or Page Slug</label>
+                <input type="text" name="target_url_or_page_slug" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Parent</label>
+                <select name="parent_id" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                    <option value="">-- None --</option>
+                    {% for item in nav_items %}
+                        <option value="{{ item.id }}">{{ item.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="w-full bg-primary text-white px-6 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors">Add Item</button>
+            </div>
+            <div class="md:col-span-2 lg:col-span-4">
+                <label class="block text-sm font-medium text-muted mb-2">Display Order</label>
+                <input type="number" name="display_order" value="0" class="w-full md:w-48 px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div class="md:col-span-2 lg:col-span-4 flex items-center">
+                <input type="checkbox" name="is_active" id="nav_is_active" checked class="w-4 h-4 text-primary border-border rounded focus:ring-primary">
+                <label for="nav_is_active" class="ml-2 text-sm text-[#1A1A1A]">Active</label>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const sortable = document.getElementById('navigation-sortable');
+        const saveBtn = document.getElementById('save-order-btn');
+        const orderInput = document.getElementById('nav-order-input');
+        let draggedRow = null;
+
+        if (sortable) {
+            sortable.querySelectorAll('tr').forEach(row => {
+                row.addEventListener('dragstart', function(e) {
+                    draggedRow = row;
+                    e.dataTransfer.effectAllowed = 'move';
+                    row.style.opacity = '0.4';
+                });
+                row.addEventListener('dragend', function() {
+                    row.style.opacity = '1';
+                    draggedRow = null;
+                });
+                row.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    if (!draggedRow || draggedRow === row) return;
+                    const rect = row.getBoundingClientRect();
+                    const midpoint = rect.top + rect.height / 2;
+                    if (e.clientY < midpoint) {
+                        row.parentNode.insertBefore(draggedRow, row);
+                    } else {
+                        row.parentNode.insertBefore(draggedRow, row.nextSibling);
+                    }
+                });
+            });
+
+            saveBtn.addEventListener('click', function() {
+                const ids = Array.from(sortable.querySelectorAll('tr')).map(r => r.dataset.id);
+                orderInput.value = ids.join(',');
+                document.getElementById('navigation-form').submit();
+            });
+
+            function deleteNavItem(id) {
+                if (!confirm('Are you sure?')) return;
+                fetch('/admin/navigation/' + id + '/delete', {
+                    method: 'POST',
+                    headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+                }).then(() => location.reload());
+            }
+
+            document.querySelectorAll('.btn-delete-nav').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    deleteNavItem(this.dataset.id);
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}
+

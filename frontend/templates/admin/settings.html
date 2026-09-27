@@ -1,0 +1,256 @@
+﻿{% extends "admin/base.html" %}
+{% block title %}Site Settings{% endblock %}
+{% block page_title %}Site Settings{% endblock %}
+{% block page_title_mobile %}Settings{% endblock %}
+{# Admin site settings page. Extends admin/base.html. Renders the Site Settings form in the admin back-office.
+   Consumes: settings (dict-like object with get() method for SiteSetting key/value pairs).
+   Edits SiteSetting keys: hero_heading, hero_subtext, announcement_bar, footer_text,
+   primary_accent_color, secondary_accent_color, contact_email, contact_phone, social_links.
+   Form POSTs to same endpoint; key/value pairs persisted via SiteSetting model. #}
+{% block content %}
+<div class="space-y-6">
+    <h1 class="font-serif text-2xl text-[#1A1A1A]">Site Settings</h1>
+
+    <form method="POST" enctype="multipart/form-data" class="space-y-6">
+        {{ csrf_input() }}
+        {# Hero settings group: hero_heading, hero_subtext #}
+        <div class="bg-white rounded-2xl border border-border p-6">
+            <h3 class="font-semibold text-lg mb-4">Hero</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">Hero Heading</label>
+                    <input type="text" name="hero_heading" value="{{ settings.get('hero_heading', '') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">Hero Subtext</label>
+                    <input type="text" name="hero_subtext" value="{{ settings.get('hero_subtext', '') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+            </div>
+        </div>
+
+        {# Announcement & Footer settings group: announcement_bar, footer_text #}
+        <div class="bg-white rounded-2xl border border-border p-6">
+            <h3 class="font-semibold text-lg mb-4">Announcement & Footer</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">Announcement Bar</label>
+                    <input type="text" name="announcement_bar" value="{{ settings.get('announcement_bar', '') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">Footer Text</label>
+                    <input type="text" name="footer_text" value="{{ settings.get('footer_text', '') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+            </div>
+        </div>
+
+        {# Theme settings group: primary_accent_color, secondary_accent_color (color pickers) #}
+        <div class="bg-white rounded-2xl border border-border p-6">
+            <h3 class="font-semibold text-lg mb-4">Theme</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">Primary Accent Color</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" name="primary_accent_color" value="{{ settings.get('primary_accent_color', '#8B1E3F') }}" class="w-12 h-10 rounded-lg border border-border cursor-pointer">
+                        <span class="text-sm text-muted">{{ settings.get('primary_accent_color', '#8B1E3F') }}</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">Secondary Accent Color</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" name="secondary_accent_color" value="{{ settings.get('secondary_accent_color', '#C9A227') }}" class="w-12 h-10 rounded-lg border border-border cursor-pointer">
+                        <span class="text-sm text-muted">{{ settings.get('secondary_accent_color', '#C9A227') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Contact settings group: contact_email, contact_phone, social_links #}
+        <div class="bg-white rounded-2xl border border-border p-6">
+            <h3 class="font-semibold text-lg mb-4">Contact</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">Contact Email</label>
+                    <input type="email" name="contact_email" value="{{ settings.get('contact_email', '') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">Contact Phone</label>
+                    <input type="text" name="contact_phone" value="{{ settings.get('contact_phone', '') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">Social Links (JSON)</label>
+                    <textarea name="social_links" rows="3" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">{{ settings.get('social_links', '') }}</textarea>
+                    <p class="text-xs text-muted mt-1">Format: [{"platform":"instagram","url":"https://..."},{"platform":"facebook","url":"https://..."}]</p>
+                </div>
+            </div>
+        </div>
+
+        {# Site Identity section #}
+        <div class="bg-white rounded-2xl border border-border p-6">
+            <h3 class="font-semibold text-lg mb-4">Site Identity</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">Site Title</label>
+                    <input type="text" name="site_title" value="{{ settings.get('site_title', 'Gold Creation') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">Logo</label>
+                    {% if settings.get('logo_url') %}
+                    <img src="{{ settings.get('logo_url') }}" class="h-12 w-auto mb-4" id="logo-preview">
+                    {% else %}
+                    <img src="" class="h-12 w-auto mb-4 hidden" id="logo-preview">
+                    {% endif %}
+                    <div class="relative border-2 border-dashed border-border rounded-2xl p-8 text-center" id="logo-upload-zone">
+                        <div id="upload-content">
+                            <svg class="mx-auto h-12 w-12 text-muted mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v12m0 0v4m0-4H28m-12 4h4m-4 4h4m-4 4h4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <p class="text-sm text-muted mb-4">Drag and drop a logo image here, or</p>
+                            <button type="button" class="bg-primary text-white px-4 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors" id="browse-logo-btn">Browse Files</button>
+                            <input type="file" name="logo" accept="image/*" class="hidden" id="logo-file-input">
+                        </div>
+                        <div id="upload-progress" class="hidden absolute inset-0 bg-white bg-opacity-90 rounded-2xl flex flex-col items-center justify-center">
+                            <svg class="animate-spin h-8 w-8 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <div class="w-48 bg-gray-200 rounded-full h-2 mb-2">
+                                <div id="progress-bar" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                            <span id="progress-text" class="text-sm text-muted">0%</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-muted mt-2">Upload an image file, or enter a URL below.</p>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">Logo URL</label>
+                    <input type="url" name="logo_url" value="{{ settings.get('logo_url', '') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" id="logo-url-input">
+                    <p class="text-xs text-muted mt-1">Leave empty to use text logo. Enter an image URL to display a logo image.</p>
+                </div>
+            </div>
+        </div>
+
+        {# Currency section #}
+        <div class="bg-white rounded-2xl border border-border p-6">
+            <h3 class="font-semibold text-lg mb-4">Currency</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-muted mb-2">USD Exchange Rate (1 USD = ? INR)</label>
+                    <input type="number" step="any" name="currency_manual_rate" value="{{ settings.get('currency_manual_rate', '') }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="e.g. 83.0">
+                    <p class="text-xs text-muted mt-1">Set the USD to INR exchange rate. This rate is used for all currency conversions.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button type="submit" class="bg-primary text-white px-6 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors">Save Settings</button>
+        </div>
+    </form>
+</div>
+
+<script>
+(function() {
+    const browseBtn = document.getElementById('browse-logo-btn');
+    const fileInput = document.getElementById('logo-file-input');
+    const uploadZone = document.getElementById('logo-upload-zone');
+    const uploadContent = document.getElementById('upload-content');
+    const uploadProgress = document.getElementById('upload-progress');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const logoPreview = document.getElementById('logo-preview');
+    const logoUrlInput = document.getElementById('logo-url-input');
+
+    if (!browseBtn || !fileInput) return;
+
+    browseBtn.addEventListener('click', function() {
+        fileInput.click();
+    });
+
+    uploadZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadZone.classList.add('border-primary');
+    });
+
+    uploadZone.addEventListener('dragleave', function() {
+        uploadZone.classList.remove('border-primary');
+    });
+
+    uploadZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadZone.classList.remove('border-primary');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            uploadLogo(files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            uploadLogo(this.files[0]);
+        }
+    });
+
+    function uploadLogo(file) {
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file.');
+            return;
+        }
+
+        const form = document.querySelector('form');
+        const formData = new FormData();
+        formData.append('logo', file);
+        Array.from(form.querySelectorAll('input[type="hidden"]')).forEach(function(input) {
+            if (input.name) {
+                formData.append(input.name, input.value);
+            }
+        });
+
+        uploadContent.classList.add('hidden');
+        uploadProgress.classList.remove('hidden');
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/admin/settings/logo', true);
+
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percent + '%';
+                progressText.textContent = percent + '%';
+            }
+        });
+
+        xhr.onload = function() {
+            uploadContent.classList.remove('hidden');
+            uploadProgress.classList.add('hidden');
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.logo_url) {
+                        logoPreview.src = response.logo_url;
+                        logoPreview.classList.remove('hidden');
+                        logoUrlInput.value = response.logo_url;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse response', e);
+                }
+            } else {
+                alert('Failed to upload logo. Please try again.');
+            }
+        };
+
+        xhr.onerror = function() {
+            uploadContent.classList.remove('hidden');
+            uploadProgress.classList.add('hidden');
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+            alert('An error occurred while uploading the logo. Please try again.');
+        };
+
+        xhr.send(formData);
+    }
+})();
+</script>
+
+{% endblock %}

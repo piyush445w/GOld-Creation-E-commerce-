@@ -1,0 +1,89 @@
+{# Admin banner form: renders add/edit banner form. Extends admin/base.html. Consumes: banner (Banner model or None). POSTs to admin.banner_create or admin.banner_update with multipart/form-data. #}
+{% extends "admin/base.html" %}
+{% block title %}{{ 'Edit Banner' if banner else 'Add Banner' }}{% endblock %}
+{% block page_title %}{{ 'Edit Banner' if banner else 'Add Banner' }}{% endblock %}
+{% block page_title_mobile %}{{ 'Edit Banner' if banner else 'Add Banner' }}{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page header with title and back link #}
+    <div class="flex items-center justify-between">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">{{ 'Edit Banner' if banner else 'Add Banner' }}</h1>
+        <a href="{{ url_for('admin.banners_list') }}" class="text-sm text-muted hover:text-primary transition-colors">&larr; Back to Banners</a>
+    </div>
+
+    {# Banner form: POSTs to admin.banner_create (add) or admin.banner_update (edit). Includes CSRF. #}
+    <form method="POST" enctype="multipart/form-data" class="bg-white rounded-2xl border border-border p-8 max-w-2xl">
+        {{ csrf_input() }}
+        {% if form.errors %}
+        <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+            <p class="font-medium mb-1">Please fix the following errors:</p>
+            <ul class="list-disc list-inside space-y-1">
+                {% for field, errors in form.errors.items() %}
+                    {% for error in errors %}
+                        <li>{{ field }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        <div class="space-y-6">
+            {# Title field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Title</label>
+                <input type="text" name="title" value="{{ banner.title if banner else '' }}" required class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Banner Image field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Banner Image</label>
+                {% if banner and banner.image_url %}
+                <div class="mb-4">
+                    <img src="{{ banner.image_url }}" alt="Banner preview" class="max-h-48 rounded-xl object-contain border border-border">
+                </div>
+                {% endif %}
+                <div class="border-2 border-dashed border-border rounded-2xl p-8 text-center">
+                    <i data-lucide="upload-cloud" class="w-12 h-12 text-muted mx-auto mb-4"></i>
+                    <p class="text-sm text-muted mb-2">Drag and drop files here, or click to browse</p>
+                    <input type="file" name="image" accept="image/*" class="w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-primary file:text-white hover:file:bg-opacity-90">
+                    <p class="text-xs text-muted mt-2">Supports: JPG, PNG, GIF, SVG, WebP</p>
+                </div>
+            </div>
+            {# Image URL field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Image URL <span class="text-xs text-muted">(fallback if no file uploaded)</span></label>
+                <input type="url" name="image_url" value="{{ banner.image_url if banner else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Link URL field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Link URL</label>
+                <input type="url" name="link_url" value="{{ banner.link_url if banner else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Display Order field #}
+            <div>
+                <label class="block text-sm font-medium text-muted mb-2">Display Order</label>
+                <input type="number" name="display_order" value="{{ banner.display_order if banner else 0 }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            {# Start/End Date fields in grid #}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">Start Date</label>
+                    <input type="date" name="start_date" value="{{ banner.start_date.strftime('%Y-%m-%d') if banner and banner.start_date else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-muted mb-2">End Date</label>
+                    <input type="date" name="end_date" value="{{ banner.end_date.strftime('%Y-%m-%d') if banner and banner.end_date else '' }}" class="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+            </div>
+            {# Active checkbox #}
+            <div class="flex items-center">
+                <input type="checkbox" name="is_active" id="is_active" {% if not banner or banner.is_active %}checked{% endif %} class="w-4 h-4 text-primary border-border rounded focus:ring-primary">
+                <label for="is_active" class="ml-2 text-sm text-[#1A1A1A]">Active</label>
+            </div>
+        </div>
+        {# Form actions: Save and Cancel #}
+        <div class="flex items-center gap-4 mt-8">
+            <button type="submit" class="bg-primary text-white px-6 py-2 rounded-full font-medium hover:bg-opacity-90 transition-colors">Save Banner</button>
+            <a href="{{ url_for('admin.banners_list') }}" class="border border-border px-6 py-2 rounded-full text-sm text-muted hover:text-[#1A1A1A] transition-colors">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

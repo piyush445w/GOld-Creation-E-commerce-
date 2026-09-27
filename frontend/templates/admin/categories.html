@@ -1,0 +1,90 @@
+{# Categories list page: rendered at admin.categories_list. Extends admin/base.html. #}
+{# Role: lists categories with parent/product count/active status; consumes `categories` and `pagination`. #}
+{% extends "admin/base.html" %}
+{% block title %}Categories{% endblock %}
+{% block page_title %}Categories{% endblock %}
+{% block page_title_mobile %}Categories{% endblock %}
+{% block content %}
+{# Categories page: header with "Add Category" link, data table, and pagination. #}
+<div class="space-y-6">
+    {# Page header: title plus "Add Category" button linking to admin.category_new. #}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">Categories</h1>
+        <a href="{{ url_for('admin.category_new') }}" class="inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Add Category
+        </a>
+    </div>
+
+    {# Data table: one row per category with name/slug/parent/product count/active badge and Edit/Delete actions. #}
+    <div class="bg-white rounded-2xl border border-border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-section">
+                    <tr>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Name</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Image</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Slug</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Parent</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Products</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Active</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-custom">
+                    {% if categories %}
+                        {% for category in categories %}
+                            {% set primary_media = category.media.filter_by(is_primary=True).first() %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium">{{ category.name }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">
+                                    {% if primary_media %}
+                                        <img src="{{ url_for('media.serve_category_media', category_id=category.id, media_id=primary_media.id) }}" alt="" class="w-10 h-10 object-cover rounded-lg">
+                                    {% else %}
+                                        <span class="text-xs text-muted">No image</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ category.slug }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ category.parent.name if category.parent else '-' }}</td>
+                                <td class="px-6 py-4 text-sm">{{ category.product_count or 0 }}</td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium {% if category.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                        {{ 'Active' if category.is_active else 'Inactive' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-3">
+                                        <a href="{{ url_for('admin.category_edit', id=category.id) }}" class="text-sm text-primary hover:underline">Edit</a>
+                                        <form method="POST" action="{{ url_for('admin.category_delete', id=category.id) }}" class="inline" onsubmit="return confirm('Are you sure?');">
+                                            {{ csrf_input() }}
+                                            <button type="submit" class="text-sm text-[#D64545] hover:underline">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="px-6 py-8 text-center text-muted">No categories yet. <a href="{{ url_for('admin.category_new') }}" class="text-primary hover:underline">Add your first category</a>.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {# Pagination: rendered only when pagination.pages > 1; links call admin.categories_list with the page number. #}
+        {% if pagination and pagination.pages > 1 %}
+            <div class="px-6 py-4 border-t border-border flex items-center justify-center gap-2">
+                {% if pagination.has_prev %}
+                    <a href="{{ url_for('admin.categories_list', page=pagination.page - 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Previous</a>
+                {% endif %}
+                {% for page_num in range(1, pagination.pages + 1) %}
+                    <a href="{{ url_for('admin.categories_list', page=page_num) }}" class="px-3 py-1 rounded-lg text-sm {% if page_num == pagination.page %}bg-primary text-white{% else %}border border-border hover:bg-section transition-colors{% endif %}">{{ page_num }}</a>
+                {% endfor %}
+                {% if pagination.has_next %}
+                    <a href="{{ url_for('admin.categories_list', page=pagination.page + 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Next</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

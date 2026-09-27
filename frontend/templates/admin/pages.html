@@ -1,0 +1,98 @@
+{# Admin back-office: CMS static content page listing.
+   Extends "admin/base.html". Role: paginated table of every Page record with its
+   slug and publish state, plus per-row edit / publish-toggle / delete actions.
+   View variables consumed: `pages` (current page of Page records) and
+   `pagination` (page/pages/has_prev/has_next state object). #}
+{% extends "admin/base.html" %}
+{% block title %}Pages{% endblock %}
+{% block page_title %}Pages{% endblock %}
+{% block page_title_mobile %}Pages{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {# Page header: "Pages" title and the action button linking to admin.page_new. #}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 class="font-serif text-2xl text-[#1A1A1A]">Pages</h1>
+        <a href="{{ url_for('admin.page_new') }}" class="inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-opacity-90 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Add Page
+        </a>
+    </div>
+
+    {# Pages table. Columns: Title (page.title), Slug (page.slug),
+       Published (page.is_published), Updated (page.updated_at), Actions. #}
+    <div class="bg-white rounded-2xl border border-border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-section">
+                    <tr>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Title</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Slug</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Published</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Updated</th>
+                        <th class="text-left text-xs uppercase tracking-wider text-muted px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-custom">
+                    {# One row per entry in `pages`. #}
+                    {% if pages %}
+                        {% for page in pages %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 text-sm font-medium">{{ page.title }}</td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ page.slug }}</td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 rounded-full text-xs font-medium {% if page.is_published %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                        {{ 'Published' if page.is_published else 'Draft' }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-muted">{{ page.updated_at.strftime('%b %d, %Y') if page.updated_at else 'N/A' }}</td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-3">
+                                        {# Row action: GET admin.page_edit with the page id. #}
+                                        <a href="{{ url_for('admin.page_edit', id=page.id) }}" class="text-sm text-primary hover:underline">Edit</a>
+                                        {# Row action: POST admin.page_toggle with the page id, CSRF protected, to flip the published state. #}
+                                        <form method="POST" action="{{ url_for('admin.page_toggle', id=page.id) }}" class="inline">
+                                            {# CSRF token for the publish-toggle POST. #}
+                                            {{ csrf_input() }}
+                                            <button type="submit" class="text-sm text-muted hover:text-primary transition-colors">
+                                                {{ 'Unpublish' if page.is_published else 'Publish' }}
+                                            </button>
+                                        </form>
+                                        {# Row action: POST admin.page_delete with the page id, CSRF protected, confirm-guarded. #}
+                                        <form method="POST" action="{{ url_for('admin.page_delete', id=page.id) }}" class="inline" onsubmit="return confirm('Are you sure?');">
+                                            {# CSRF token for the delete POST. #}
+                                            {{ csrf_input() }}
+                                            <button type="submit" class="text-sm text-[#D64545] hover:underline">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        {# Empty state: no pages exist yet, points back to admin.page_new. #}
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-muted">No pages yet. <a href="{{ url_for('admin.page_new') }}" class="text-primary hover:underline">Add your first page</a>.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {# Pagination, rendered only when there is more than one page. Previous/Next and every
+           page number link back to admin.pages_list with the matching ?page= argument. #}
+        {% if pagination and pagination.pages > 1 %}
+            <div class="px-6 py-4 border-t border-border flex items-center justify-center gap-2">
+                {% if pagination.has_prev %}
+                    <a href="{{ url_for('admin.pages_list', page=pagination.page - 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Previous</a>
+                {% endif %}
+                {# Numbered page links for every page in pagination.pages; pagination.page is highlighted. #}
+                {% for page_num in range(1, pagination.pages + 1) %}
+                    <a href="{{ url_for('admin.pages_list', page=page_num) }}" class="px-3 py-1 rounded-lg text-sm {% if page_num == pagination.page %}bg-primary text-white{% else %}border border-border hover:bg-section transition-colors{% endif %}">{{ page_num }}</a>
+                {% endfor %}
+                {% if pagination.has_next %}
+                    <a href="{{ url_for('admin.pages_list', page=pagination.page + 1) }}" class="px-3 py-1 rounded-lg border border-border text-sm hover:bg-section transition-colors">Next</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

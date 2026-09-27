@@ -1,0 +1,98 @@
+name: CI
+
+# Trigger CI on pushes to main and on pull requests targeting main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # --- Lint job ---
+  # Catches syntax/style problems early so they never reach the test or build stages.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Cache pip downloads keyed on requirements.txt to speed up repeated runs.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install flake8
+          pip install -r backend/requirements.txt
+      - name: Run flake8 lint
+        # E501 (line too long) and W503 (line break before binary operator) are ignored per project convention.
+        run: flake8 backend/app backend/tests --max-line-length=120 --ignore=E501,W503
+
+  # --- Test job ---
+  # Spins up a real MySQL 8.0 container so tests run against the same database the app uses in production.
+  test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: gold_creation_test
+        ports:
+          - 3306:3306
+        # Wait until MySQL accepts connections before the test step runs.
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+      - name: Run pytest
+        # Point the app at the test MySQL DB and a fixed secret key.
+        env:
+          FLASK_ENV: testing
+          DATABASE_URL: mysql+pymysql://root:root_password@localhost:3306/gold_creation_test
+          SECRET_KEY: test-secret-key
+        run: pytest backend/tests -v
+
+  # --- Build job ---
+  # Builds the Docker image so it exists as an artifact for the deploy workflow to push.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+      - name: Build Docker image
+        # Verifies the Dockerfile builds cleanly and produces a runnable image.
+        run: docker build -f backend/Dockerfile -t gold-creation:ci .
