@@ -29,7 +29,7 @@ class User(UserMixin, db.Model):
     # Optional contact number for delivery coordination and OTP flows.
     phone = db.Column(db.String(20))
     # ISO country code; helps pre-select currency and shipping defaults.
-    country = db.Column(db.String(2))
+    country = db.Column(db.String(100))
     # Currency the storefront should display prices in for this user.
     preferred_currency = db.Column(db.String(3), default='INR')
     # Password-reset token, unique when present so a lookup finds one user.

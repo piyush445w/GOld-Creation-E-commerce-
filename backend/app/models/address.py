@@ -24,7 +24,7 @@ class Address(db.Model):
     city = db.Column(db.String(100), nullable=False)
     state = db.Column(db.String(100), nullable=False)
     # ISO 3166-1 alpha-2 code, e.g. "IN" or "US"; used for currency/tax decisions.
-    country = db.Column(db.String(2), nullable=False)
+    country = db.Column(db.String(100), nullable=False)
     postal_code = db.Column(db.String(20), nullable=False)
     # Marks the address pre-selected at checkout; the app keeps at most one default.
     is_default = db.Column(db.Boolean, default=False)
