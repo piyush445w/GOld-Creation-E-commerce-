@@ -44,7 +44,7 @@ def _get_engine_options(database_url: str | None) -> dict:
         parsed = urlparse(database_url)
         host = (parsed.hostname or '').lower()
 
-        if 'railway.internal' in host or 'railway.app' in host:
+        if 'railway.internal' in host or 'railway.app' in host or host.endswith('.rlwy.net'):
             connect_args['ssl'] = {'ssl_mode': 'REQUIRED'}
         elif 'aivencloud.com' in host:
             connect_args['ssl'] = {

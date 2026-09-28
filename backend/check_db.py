@@ -1,5 +1,5 @@
 import os
-os.environ['DATABASE_URL'] = 'mysql+pymysql://root:@localhost/test_migration_db'
+os.environ['DATABASE_URL'] = 'mysql+pymysql://root:xZYvgbIifICPAhnlkyPJsEdRpxgPZcAG@thomas.proxy.rlwy.net:12869/railway'
 os.environ['SECRET_KEY'] = 'test'
 from app import create_app
 from sqlalchemy import text, inspect
